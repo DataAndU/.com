@@ -54,7 +54,7 @@ class TimingMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope.get("path") == "/api/healthz":
+        if scope["type"] != "http" or scope.get("path") in {"/api/healthz", "/api/readyz"}:
             return await self.app(scope, receive, send)
         start = time.perf_counter()
         counter = [0]

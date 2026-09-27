@@ -1,0 +1,18 @@
+[Unit]
+Description=Pontreol API (FastAPI/uvicorn)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=pontreol
+WorkingDirectory=/opt/pontreol/artifacts/api-server
+EnvironmentFile=/etc/pontreol/pontreol.env
+ExecStart=/usr/local/bin/uv run --frozen --project /opt/pontreol uvicorn app:app --app-dir python --host 127.0.0.1 --port 8080 --no-access-log --timeout-keep-alive 30
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

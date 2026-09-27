@@ -1,5 +1,6 @@
 "use client";
 
+import { ListingPhoto } from "@/components/listing-photo";
 import { useListings } from "@/lib/api/listings";
 import { fetchApi } from "@/lib/api/client";
 import { Search, MapPin } from "lucide-react";
@@ -218,7 +219,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                 <div key={listing.id} onClick={() => router.push(`/discover/${listing.id}`)} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm flex flex-col group cursor-pointer hover:border-primary/50 transition-colors">
                   <div className="aspect-video bg-input relative overflow-hidden">
                     {listing.photos && listing.photos.length > 0 ? (
-                      <img loading="lazy" decoding="async" src={listing.photos[0].objectPath} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                      <ListingPhoto photo={listing.photos[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground">No Image</div>
                     )}

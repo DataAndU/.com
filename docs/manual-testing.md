@@ -58,6 +58,24 @@ An administrator configures plans, discounts and the free monthly contact limit.
 5. Sign out, then sign in as a different account: no data from the first account is shown (the query cache is cleared on user change).
 6. Sign-in page renders the Clerk form on Android Chrome (the proxy still forces `Accept-Encoding: identity`).
 
+## Authentication and account checks (real Clerk, desktop + Android Chrome)
+
+1. Signed out, open `/home`: you are redirected to `/sign-in`, and the Clerk form renders (not a blank page).
+2. Sign in with Google: the callback returns you to the app, and the Map/Discover links work straight away.
+3. Refresh: you are still signed in. Leave the tab for more than 60 s and come back: API calls still succeed (session refresh).
+4. Sign out: `/home` redirects to `/sign-in` again.
+5. Sign in as a **different** account: the name, role links and admin link belong to the new account only (no data from the previous `/api/me`).
+6. New account with no role: you are sent to `/onboarding`, and the role choice is permanent.
+7. Buyer: the My Listings link is hidden, and `/listings` shows "Only providers…". `/admin` shows "Administrator access required".
+8. Provider: you can create, edit and pause listings and set availability. You cannot edit another provider's listing (API 404).
+9. Admin: `/admin` loads. After a suspension, the suspended account gets "Account is suspended" on its next request.
+
+## Photo checks
+
+1. Create a listing with 2 photos: the previews appear after upload.
+2. Discover, listing detail, provider page and My Listings all show the photo (network: `/api/media/<id>` → 302 → storage).
+3. Delete the object in the bucket: the card shows a "photo unavailable" placeholder, not a broken image.
+
 ## Automated checks
 
 The backend tests isolate marketplace records in a temporary PostgreSQL schema and use test-only identity overrides. They do not bypass production authentication or prove a real Google OAuth or Razorpay sandbox checkout succeeded. Test payments are isolated from live paid access, payment history, webhook receipts, and live revenue.

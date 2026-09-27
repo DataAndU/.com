@@ -19,7 +19,7 @@ import billing_models  # noqa: F401
 from app import app
 from deps import current_user, get_db
 from models import Base, ContactUsage, Listing, Media, NotificationOutbox, User
-from outbox import process_batch
+from outbox import EmailError, process_batch
 from billing_models import BillingSetting
 
 
@@ -248,13 +248,20 @@ def test_outbox_skips_without_sender_and_retries(database, monkeypatch):
         assert queued.attempts == 0 and queued.sent_at is None
 
     monkeypatch.setenv("RESEND_FROM", "Pontreol <notifications@pontreol.com>")
-    failed = lambda *a, **k: SimpleNamespace(returncode=1,
-        stdout='{"error":"Email provider rejected the notification"}')
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
     with database.begin() as db:
-        assert process_batch(db, runner=failed) == {"processed": 1, "sent": 0}
+        assert process_batch(db)["skipped"] == "RESEND_API_KEY is not configured"
+        assert db.get(NotificationOutbox, item.id).attempts == 0
+
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+
+    def failed(_message):
+        raise EmailError("Email provider rejected the notification (HTTP 422)")
+    with database.begin() as db:
+        assert process_batch(db, sender=failed) == {"processed": 1, "sent": 0}
         assert db.get(NotificationOutbox, item.id).attempts == 1
 
-    succeeded = lambda *a, **k: SimpleNamespace(returncode=0, stdout='{"id":"email_1"}')
+    succeeded = lambda _message: "email_1"
     with database.begin() as db:
-        assert process_batch(db, runner=succeeded) == {"processed": 1, "sent": 1}
+        assert process_batch(db, sender=succeeded) == {"processed": 1, "sent": 1}
         assert db.get(NotificationOutbox, item.id).sent_at is not None

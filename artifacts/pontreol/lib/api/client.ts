@@ -60,7 +60,10 @@ export type ProviderSummary = {
 
 export type Media = {
   id: string;
+  /** Internal storage key; never use as an image address. */
   objectPath: string;
+  /** Same-origin, authorized image URL. */
+  url: string;
   contentType: string;
   sizeBytes: number;
   status: "pending" | "ready";

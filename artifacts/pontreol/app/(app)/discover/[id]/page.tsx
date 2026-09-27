@@ -1,5 +1,6 @@
 "use client";
 
+import { ListingPhoto } from "@/components/listing-photo";
 import { useListing } from "@/lib/api/listings";
 import { useCreateServiceBooking, useCreateSpaceBooking, useCreateEquipmentBooking, useCreateDeliveryBooking, useCreateTravelBooking } from "@/lib/api/bookings";
 import { useCreateConversation } from "@/lib/api/messages";
@@ -163,7 +164,7 @@ export default function ListingDetailPage() {
           <div className="md:col-span-2 space-y-6">
             <div className="aspect-video bg-card border border-border rounded-xl overflow-hidden relative">
               {listing.photos && listing.photos.length > 0 ? (
-                <img src={listing.photos[0].objectPath} alt="" className="w-full h-full object-cover" />
+                <ListingPhoto photo={listing.photos[0]} className="w-full h-full object-cover" eager />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-input">No Photos</div>
               )}

@@ -9,6 +9,13 @@
 --   DROP INDEX CONCURRENTLY IF EXISTS ix_messages_conversation_created;
 --   DROP INDEX CONCURRENTLY IF EXISTS ix_notifications_user_created;
 --
+-- Do NOT use psql --single-transaction / -1 (CONCURRENTLY cannot run in a
+-- transaction). If a build is interrupted, Postgres leaves an INVALID index
+-- that IF NOT EXISTS would then skip. Check and repair before re-running:
+--   SELECT c.relname FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+--    WHERE NOT i.indisvalid AND c.relname LIKE 'ix_%';
+--   DROP INDEX CONCURRENTLY IF EXISTS <that index>;   -- then re-run this file
+--
 -- No PostGIS required. When listing volume needs it, the scaling path is a
 -- geography(Point) column with a GiST index queried via ST_DWithin.
 

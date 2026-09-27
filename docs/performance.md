@@ -131,7 +131,8 @@ No Replit hostnames are hard-coded. Required on any host:
 - Object storage: `DEFAULT_OBJECT_STORAGE_BUCKET_ID` and `PRIVATE_OBJECT_DIR`,
   plus Google Cloud credentials (`GOOGLE_APPLICATION_CREDENTIALS`). On Replit
   these are provided implicitly.
-- Email: `resend-send.mjs` uses the Replit Connectors SDK. Off Replit it needs a
-  Resend API-key transport before notification emails will send.
+- Email: the outbox calls the Resend HTTP API directly with `RESEND_API_KEY`
+  and `RESEND_FROM` (no Replit connector). Without them, emails stay queued.
+- Full runbook: `docs/deployment-digitalocean.md`.
 - `NODE_ENV=production`; run the migration above; build with
   `pnpm --filter @workspace/pontreol run build` and `uv sync --frozen`.

@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 from http.cookiejar import CookieJar, DefaultCookiePolicy
 from contextlib import asynccontextmanager
 
@@ -69,7 +70,25 @@ app.add_middleware(TimingMiddleware)
 
 @app.get("/api/healthz")
 def health():
+    """Liveness: the process is up. Deliberately independent of PostgreSQL,
+    Clerk, storage and email so a dependency outage does not restart-loop."""
     return {"status": "ok"}
+
+
+@app.get("/api/readyz")
+def ready():
+    """Readiness: PostgreSQL reachable. Returns 503 (no error details) when not."""
+    from sqlalchemy import text
+    from deps import engine
+    if engine is None:
+        raise HTTPException(503, "Database is not configured")
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        logging.getLogger("pontreol.health").warning("Readiness check failed: database unreachable")
+        raise HTTPException(503, "Database unavailable")
+    return {"status": "ready"}
 
 
 @app.api_route("/api/__clerk/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],

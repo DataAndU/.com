@@ -1,5 +1,6 @@
 "use client";
 
+import { ListingPhoto } from "@/components/listing-photo";
 import { Listing, Media } from "@/lib/api/client";
 import { uploadMedia } from "@/lib/api/listings";
 import { Upload, X } from "lucide-react";
@@ -373,7 +374,7 @@ export function ListingForm({ initial, defaultCategory, mutationPending, onSubmi
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {photos.map((photo) => (
             <div key={photo.id} className="aspect-square bg-input rounded-lg relative overflow-hidden group">
-              <img src={photo.objectPath} className="w-full h-full object-cover" alt="Listing photo" />
+              <ListingPhoto photo={photo} className="w-full h-full object-cover" alt="Listing photo" />
               <button type="button" aria-label="Remove photo" onClick={() => setPhotos((current) => current.filter((item) => item.id !== photo.id))} className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-1">
                 <X className="w-3 h-3" />
               </button>

@@ -1,5 +1,5 @@
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -88,6 +88,29 @@ def finalize(media_id: str, db: Session = Depends(get_db), user=Depends(current_
     return {"media": media_json(media)}
 
 
+# Signed GET URLs are valid for an hour and reused until 10 minutes remain,
+# so repeated image loads do not re-sign. Authorization is still checked on
+# every request before a cached URL is returned.
+SIGNED_URL_TTL = timedelta(hours=1)
+SIGNED_URL_MIN_REMAINING = timedelta(minutes=10)
+BROWSER_CACHE_SECONDS = 300
+_signed_cache: dict[str, tuple[datetime, str]] = {}
+_SIGNED_CACHE_MAX = 5000
+
+
+def _signed_url(cloud, media):
+    now = datetime.now(timezone.utc)
+    cached = _signed_cache.get(media.id)
+    if cached and cached[0] - now > SIGNED_URL_MIN_REMAINING:
+        return cached[1]
+    url = cloud.blob(media.object_path).generate_signed_url(
+        version="v4", expiration=SIGNED_URL_TTL, method="GET")
+    if len(_signed_cache) >= _SIGNED_CACHE_MAX:
+        _signed_cache.pop(next(iter(_signed_cache)), None)
+    _signed_cache[media.id] = (now + SIGNED_URL_TTL, url)
+    return url
+
+
 @router.get("/media/{media_id}")
 def serve(media_id: str, db: Session = Depends(get_db), user=Depends(current_user)):
     media = db.get(Media, media_id)
@@ -97,8 +120,12 @@ def serve(media_id: str, db: Session = Depends(get_db), user=Depends(current_use
         raise HTTPException(404, "Media not found")
     cloud, _ = bucket()
     try:
-        url = cloud.blob(media.object_path).generate_signed_url(version="v4",
-            expiration=timedelta(minutes=5), method="GET")
+        url = _signed_url(cloud, media)
     except Exception as exc:
         raise HTTPException(503, "Cloud media is temporarily unavailable") from exc
-    return RedirectResponse(url)
+    response = RedirectResponse(url, status_code=302)
+    # Private: per-user authorization; never stored by shared caches/CDNs.
+    response.headers["Cache-Control"] = (
+        "private, no-store" if media.is_private else f"private, max-age={BROWSER_CACHE_SECONDS}")
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response

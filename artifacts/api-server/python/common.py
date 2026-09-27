@@ -31,9 +31,19 @@ def provider_json(user, reveal=False):
                 contactPhone=user.phone if reveal and user.contact_phone_visible else None)
 
 
+def media_url(media_id):
+    """Browser-usable, same-origin image address. The endpoint authorizes the
+    viewer and redirects to a short-lived signed storage URL; storage
+    credentials never reach the browser."""
+    return f"/api/media/{media_id}"
+
+
 def media_json(media):
-    return dict(id=media.id, objectPath=media.object_path, contentType=media.content_type,
-                sizeBytes=media.size_bytes, status=media.status)
+    # `objectPath` is the internal storage key (kept for API compatibility);
+    # clients must render `url`.
+    return dict(id=media.id, objectPath=media.object_path, url=media_url(media.id),
+                contentType=media.content_type, sizeBytes=media.size_bytes,
+                status=media.status)
 
 
 def listing_json(db, listing, distance=None):
