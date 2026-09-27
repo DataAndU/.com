@@ -1,0 +1,540 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Pontreol marketplace API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: account
+    description: Signed-in account and role operations
+  - name: listings
+    description: Marketplace listings
+  - name: discovery
+    description: Marketplace discovery summaries
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /me:
+    get:
+      operationId: getMe
+      tags: [account]
+      summary: Get the signed-in user profile
+      responses:
+        "200":
+          description: Current profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /me/role:
+    put:
+      operationId: setMyRole
+      tags: [account]
+      summary: Set the permanent marketplace role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Role cannot be changed after selection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /home/summary:
+    get:
+      operationId: getHomeSummary
+      tags: [discovery]
+      summary: Get signed-in home map summary
+      parameters:
+        - $ref: "#/components/parameters/Latitude"
+        - $ref: "#/components/parameters/Longitude"
+        - $ref: "#/components/parameters/DistanceKm"
+      responses:
+        "200":
+          description: Summary and nearby listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeSummary"
+  /listings:
+    get:
+      operationId: listListings
+      tags: [listings]
+      summary: Search and filter active listings
+      parameters:
+        - name: category
+          in: query
+          schema:
+            $ref: "#/components/schemas/ListingCategory"
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: priceMin
+          in: query
+          schema:
+            type: number
+            minimum: 0
+        - name: priceMax
+          in: query
+          schema:
+            type: number
+            minimum: 0
+        - $ref: "#/components/parameters/Latitude"
+        - $ref: "#/components/parameters/Longitude"
+        - $ref: "#/components/parameters/DistanceKm"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [relevance, distance, price_low, price_high]
+            default: relevance
+      responses:
+        "200":
+          description: Matching listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingPage"
+    post:
+      operationId: createListing
+      tags: [listings]
+      summary: Create a provider listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListingInput"
+      responses:
+        "201":
+          description: Created listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "400":
+          description: Invalid listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /listings/{id}:
+    get:
+      operationId: getListing
+      tags: [listings]
+      summary: Get a listing
+      parameters:
+        - $ref: "#/components/parameters/ListingId"
+      responses:
+        "200":
+          description: Listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "404":
+          description: Listing not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: updateListing
+      tags: [listings]
+      summary: Update a provider listing
+      parameters:
+        - $ref: "#/components/parameters/ListingId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListingUpdate"
+      responses:
+        "200":
+          description: Updated listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "404":
+          description: Listing not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteListing
+      tags: [listings]
+      summary: Delete a provider listing
+      parameters:
+        - $ref: "#/components/parameters/ListingId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Listing not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  parameters:
+    ListingId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Latitude:
+      name: lat
+      in: query
+      schema:
+        type: number
+        minimum: -90
+        maximum: 90
+    Longitude:
+      name: lng
+      in: query
+      schema:
+        type: number
+        minimum: -180
+        maximum: 180
+    DistanceKm:
+      name: distanceKm
+      in: query
+      schema:
+        type: number
+        minimum: 1
+        maximum: 500
+        default: 25
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+    User:
+      type: object
+      required: [id, clerkUserId, email, displayName, role, isAdmin, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        role:
+          type: ["string", "null"]
+          enum: [buyer, provider, null]
+        isAdmin:
+          type: boolean
+        verificationStatus:
+          type: string
+          enum: [not_started, pending, verified, rejected]
+        rating:
+          type: number
+        reviewCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    RoleInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [buyer, provider]
+    ListingCategory:
+      type: string
+      enum: [services, spaces, equipment, delivery, travel]
+    PricingMode:
+      type: string
+      enum: [fixed, negotiable]
+    ListingStatus:
+      type: string
+      enum: [active, paused]
+    ListingAttributes:
+      oneOf:
+        - $ref: "#/components/schemas/ServiceAttributes"
+        - $ref: "#/components/schemas/SpaceAttributes"
+        - $ref: "#/components/schemas/EquipmentAttributes"
+        - $ref: "#/components/schemas/DeliveryAttributes"
+        - $ref: "#/components/schemas/TravelAttributes"
+    ServiceAttributes:
+      type: object
+      additionalProperties: false
+      required: [serviceType, experienceYears, onSiteOrRemote]
+      properties:
+        serviceType: { type: string }
+        experienceYears: { type: integer, minimum: 0 }
+        onSiteOrRemote: { type: string, enum: [onSite, remote, both] }
+    SpaceAttributes:
+      type: object
+      additionalProperties: false
+      required: [capacity, spaceType]
+      properties:
+        capacity: { type: integer, minimum: 1 }
+        spaceType: { type: string }
+    EquipmentAttributes:
+      type: object
+      additionalProperties: false
+      required: [equipmentType, condition, fuelType]
+      properties:
+        equipmentType: { type: string }
+        condition: { type: string }
+        fuelType: { type: string }
+    DeliveryAttributes:
+      type: object
+      additionalProperties: false
+      required: [vehicleType, maxLoadCapacity, serviceRadiusKm]
+      properties:
+        vehicleType: { type: string }
+        maxLoadCapacity: { type: number, minimum: 0 }
+        serviceRadiusKm: { type: number, minimum: 0 }
+    TravelAttributes:
+      type: object
+      additionalProperties: false
+      required: [vehicleType, seatingCapacity, withDriver, originLabel, originLatitude, originLongitude, destinationLabel, destinationLatitude, destinationLongitude, departureAt, availableSeats]
+      properties:
+        vehicleType: { type: string }
+        seatingCapacity: { type: integer, minimum: 1 }
+        withDriver: { type: boolean }
+        originLabel: { type: string }
+        originLatitude: { type: number, minimum: -90, maximum: 90 }
+        originLongitude: { type: number, minimum: -180, maximum: 180 }
+        destinationLabel: { type: string }
+        destinationLatitude: { type: number, minimum: -90, maximum: 90 }
+        destinationLongitude: { type: number, minimum: -180, maximum: 180 }
+        departureAt: { type: string, format: date-time }
+        availableSeats: { type: integer, minimum: 0 }
+    Listing:
+      type: object
+      required:
+        [id, providerId, provider, category, title, description,
+         price, pricingMode, currency, locationLabel, latitude, longitude, status,
+         attributes, photos, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        providerId:
+          type: string
+          format: uuid
+        provider:
+          $ref: "#/components/schemas/ProviderSummary"
+        category:
+          $ref: "#/components/schemas/ListingCategory"
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        pricingMode:
+          $ref: "#/components/schemas/PricingMode"
+        currency:
+          type: string
+        locationLabel:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        status:
+          $ref: "#/components/schemas/ListingStatus"
+        attributes:
+          $ref: "#/components/schemas/ListingAttributes"
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Media"
+        distanceKm:
+          type: ["number", "null"]
+        viewCount:
+          type: integer
+        contactCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProviderSummary:
+      type: object
+      required: [id, displayName, verificationStatus, rating, reviewCount]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        verificationStatus: { type: string, enum: [notStarted, pending, verified, rejected] }
+        rating: { type: number }
+        reviewCount: { type: integer }
+        contactEmail: { type: ["string", "null"] }
+        contactPhone: { type: ["string", "null"] }
+    Media:
+      type: object
+      required: [id, objectPath, contentType, sizeBytes, status]
+      properties:
+        id: { type: string, format: uuid }
+        objectPath: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer }
+        status: { type: string, enum: [pending, ready] }
+    ListingInput:
+      type: object
+      required:
+        [category, title, description, price, pricingMode, locationLabel, latitude,
+         longitude, attributes]
+      properties:
+        category:
+          $ref: "#/components/schemas/ListingCategory"
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+        description:
+          type: string
+          minLength: 10
+          maxLength: 4000
+        price:
+          type: number
+          minimum: 0
+        pricingMode:
+          $ref: "#/components/schemas/PricingMode"
+        currency:
+          type: string
+          default: INR
+        locationLabel:
+          type: string
+          minLength: 2
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        attributes:
+          $ref: "#/components/schemas/ListingAttributes"
+        photoIds:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+            format: uuid
+    ListingUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+        description:
+          type: string
+          minLength: 10
+          maxLength: 4000
+        price:
+          type: number
+          minimum: 0
+        pricingMode:
+          $ref: "#/components/schemas/PricingMode"
+        locationLabel:
+          type: string
+          minLength: 2
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        attributes:
+          $ref: "#/components/schemas/ListingAttributes"
+        photoIds:
+          type: array
+          maxItems: 6
+          items:
+            type: string
+            format: uuid
+        status:
+          $ref: "#/components/schemas/ListingStatus"
+    HomeSummary:
+      type: object
+      required: [totalListings, categories, nearbyListings]
+      properties:
+        totalListings:
+          type: integer
+        categories:
+          type: array
+          items:
+            type: object
+            required: [category, count]
+            properties:
+              category:
+                $ref: "#/components/schemas/ListingCategory"
+              count:
+                type: integer
+        nearbyListings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Listing"
+    ListingPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Listing"
+        nextCursor:
+          type: ["string", "null"]

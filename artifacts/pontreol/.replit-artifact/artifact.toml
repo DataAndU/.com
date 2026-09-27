@@ -1,0 +1,32 @@
+kind = "web"
+previewPath = "/"
+title = "Pontreol"
+description = "A location-based availability marketplace connecting buyers with local providers for equipment, services, travel, delivery, and spaces."
+version = "1.0.0"
+id = "artifacts/pontreol"
+router = "path"
+
+[[services]]
+name = "web"
+paths = ["/"]
+localPort = 21805
+
+[services.development]
+run = "pnpm --filter @workspace/pontreol run dev"
+
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/pontreol", "run", "build"]
+
+[services.production.run]
+args = ["pnpm", "--filter", "@workspace/pontreol", "run", "serve"]
+
+[services.production.run.env]
+PORT = "21805"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/healthz"
+
+[services.env]
+PORT = "21805"
+BASE_PATH = "/"

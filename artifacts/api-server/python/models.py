@@ -1,0 +1,214 @@
+"""Pontreol relational model. Schema changes are applied explicitly, never at startup."""
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, Float,
+                        ForeignKey, Integer, JSON, String, Text, UniqueConstraint)
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
+
+
+def uid():
+    return str(uuid.uuid4())
+
+
+def now():
+    return datetime.now(timezone.utc)
+
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(String(36), primary_key=True, default=uid)
+    clerk_user_id = Column(String(255), nullable=False, unique=True, index=True)
+    email = Column(String(320), nullable=False)
+    display_name = Column(String(120), nullable=False)
+    avatar_url = Column(Text)
+    role = Column(String(16), CheckConstraint("role IN ('buyer','provider')"))
+    is_admin = Column(Boolean, nullable=False, default=False)
+    suspended = Column(Boolean, nullable=False, default=False)
+    phone = Column(String(40))
+    contact_email_visible = Column(Boolean, nullable=False, default=False)
+    contact_phone_visible = Column(Boolean, nullable=False, default=False)
+    verification_status = Column(String(20), nullable=False, default="notStarted")
+    rating = Column(Float, nullable=False, default=0)
+    review_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
+
+
+class Listing(Base):
+    __tablename__ = "listings"
+    id = Column(String(36), primary_key=True, default=uid)
+    provider_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    category = Column(String(20), nullable=False, index=True)
+    title = Column(String(120), nullable=False)
+    description = Column(Text, nullable=False)
+    price = Column(Float, nullable=False)
+    pricing_mode = Column(String(20), nullable=False)
+    currency = Column(String(3), nullable=False, default="INR")
+    location_label = Column(String(300), nullable=False)
+    latitude = Column(Float, nullable=False, index=True)
+    longitude = Column(Float, nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="active", index=True)
+    attributes = Column(JSON, nullable=False, default=dict)
+    view_count = Column(Integer, nullable=False, default=0)
+    contact_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
+
+
+class Media(Base):
+    __tablename__ = "media"
+    id = Column(String(36), primary_key=True, default=uid)
+    owner_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    purpose = Column(String(24), nullable=False)
+    object_path = Column(Text, nullable=False, unique=True)
+    content_type = Column(String(80), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    status = Column(String(16), nullable=False, default="pending")
+    is_private = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
+
+class ListingMedia(Base):
+    __tablename__ = "listing_media"
+    listing_id = Column(String(36), ForeignKey("listings.id", ondelete="CASCADE"), primary_key=True)
+    media_id = Column(String(36), ForeignKey("media.id"), primary_key=True)
+    position = Column(Integer, nullable=False)
+    __table_args__ = (UniqueConstraint("listing_id", "position"),)
+
+
+class Availability(Base):
+    __tablename__ = "availability"
+    id = Column(String(36), primary_key=True, default=uid)
+    listing_id = Column(String(36), ForeignKey("listings.id", ondelete="CASCADE"), nullable=False, index=True)
+    starts_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    ends_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    timezone = Column(String(80), nullable=False)
+
+
+class Booking(Base):
+    __tablename__ = "bookings"
+    id = Column(String(36), primary_key=True, default=uid)
+    listing_id = Column(String(36), ForeignKey("listings.id"), nullable=False, index=True)
+    buyer_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    provider_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    category = Column(String(20), nullable=False, index=True)
+    status = Column(String(24), nullable=False, index=True)
+    details = Column(JSON, nullable=False, default=dict)
+    quoted_price = Column(Float)
+    buyer_completed_at = Column(DateTime(timezone=True))
+    provider_completed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+    id = Column(String(36), primary_key=True, default=uid)
+    listing_id = Column(String(36), ForeignKey("listings.id"), nullable=False)
+    buyer_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    provider_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    last_message_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    __table_args__ = (UniqueConstraint("listing_id", "buyer_id", "provider_id"),)
+
+
+class Message(Base):
+    __tablename__ = "messages"
+    id = Column(String(36), primary_key=True, default=uid)
+    conversation_id = Column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now, index=True)
+
+
+class ContactUsage(Base):
+    __tablename__ = "contact_usage"
+    id = Column(String(36), primary_key=True, default=uid)
+    buyer_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    provider_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    listing_id = Column(String(36), ForeignKey("listings.id"), nullable=False)
+    period = Column(String(7), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    __table_args__ = (UniqueConstraint("buyer_id", "provider_id", "listing_id", "period"),)
+
+
+class Verification(Base):
+    __tablename__ = "verifications"
+    id = Column(String(36), primary_key=True, default=uid)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True)
+    legal_name = Column(String(160), nullable=False)
+    id_type = Column(String(40), nullable=False)
+    id_media_id = Column(String(36), ForeignKey("media.id"), nullable=False)
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    rejection_reason = Column(Text)
+    submitted_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    reviewed_at = Column(DateTime(timezone=True))
+    reviewed_by = Column(String(36), ForeignKey("users.id"))
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+    id = Column(String(36), primary_key=True, default=uid)
+    booking_id = Column(String(36), ForeignKey("bookings.id"), nullable=False)
+    author_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    subject_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    rating = Column(Integer, nullable=False)
+    comment = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    __table_args__ = (UniqueConstraint("booking_id", "author_id"),)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(String(36), primary_key=True, default=uid)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    type = Column(String(40), nullable=False)
+    title = Column(String(160), nullable=False)
+    body = Column(Text, nullable=False)
+    resource_type = Column(String(40))
+    resource_id = Column(String(36))
+    read_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
+
+class NotificationPreference(Base):
+    __tablename__ = "notification_preferences"
+    user_id = Column(String(36), ForeignKey("users.id"), primary_key=True)
+    email_bookings = Column(Boolean, nullable=False, default=True)
+    email_messages = Column(Boolean, nullable=False, default=True)
+    browser_bookings = Column(Boolean, nullable=False, default=True)
+    browser_messages = Column(Boolean, nullable=False, default=True)
+
+
+class NotificationOutbox(Base):
+    __tablename__ = "notification_outbox"
+    id = Column(String(36), primary_key=True, default=uid)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    recipient = Column(String(320), nullable=False)
+    subject = Column(String(200), nullable=False)
+    body = Column(Text, nullable=False)
+    attempts = Column(Integer, nullable=False, default=0)
+    sent_at = Column(DateTime(timezone=True))
+    last_error = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
+
+class GeocodeCache(Base):
+    __tablename__ = "geocode_cache"
+    query = Column(String(200), primary_key=True)
+    results = Column(JSON, nullable=False)
+    fetched_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
+
+class AuditRecord(Base):
+    __tablename__ = "admin_audit"
+    id = Column(String(36), primary_key=True, default=uid)
+    admin_user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    action = Column(String(80), nullable=False)
+    target_type = Column(String(40), nullable=False)
+    target_id = Column(String(36), nullable=False)
+    metadata_json = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
