@@ -4,9 +4,11 @@ import { useListingAvailability, useUpdateAvailability } from "@/lib/api/listing
 import { format, addDays } from "date-fns";
 import { useState } from "react";
 import { ArrowLeft, Plus, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
-export default function AvailabilityPage({ params }: { params: { id: string } }) {
+export default function AvailabilityPage() {
+  // Next 16 passes `params` to pages as a Promise; read route params via the hook.
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const [from] = useState(() => format(new Date(), "yyyy-MM-dd'T'00:00:00'Z'"));
   const [to] = useState(() => format(addDays(new Date(), 30), "yyyy-MM-dd'T'23:59:59'Z'"));

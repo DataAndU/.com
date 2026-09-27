@@ -73,7 +73,7 @@ export default function MyListingsPage() {
               {listingsData?.items.map((listing) => (
                 <div key={listing.id} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm flex flex-col">
                   <div className="aspect-video bg-input flex items-center justify-center relative">
-                    {listing.photos?.length ? <img src={listing.photos[0].objectPath} className="w-full h-full object-cover" alt="" /> : <ListIcon className="w-10 h-10 text-muted-foreground opacity-30" />}
+                    {listing.photos?.length ? <img loading="lazy" decoding="async" src={listing.photos[0].objectPath} className="w-full h-full object-cover" alt="" /> : <ListIcon className="w-10 h-10 text-muted-foreground opacity-30" />}
                     <div className="absolute top-2 right-2 bg-black/60 backdrop-blur text-white text-xs px-2 py-1 rounded">{listing.status}</div>
                   </div>
                   <div className="p-4 flex flex-col flex-1">

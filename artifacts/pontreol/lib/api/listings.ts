@@ -1,15 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchApi, Listing, Page, Media } from "./client";
 
-export function useHomeSummary(lat?: number, lng?: number, distanceKm?: number) {
-  const params = new URLSearchParams();
-  if (lat) params.set("lat", lat.toString());
-  if (lng) params.set("lng", lng.toString());
-  if (distanceKm) params.set("distanceKm", distanceKm.toString());
-  
-  return useQuery<{ totalListings: number; categories: { category: string; count: number }[]; nearbyListings: Listing[] }>({
-    queryKey: ["home-summary", lat, lng, distanceKm],
-    queryFn: () => fetchApi(`/home/summary?${params.toString()}`),
+/** Compact listing projection returned by `/home/summary?view=map`. */
+export type MapPin = Pick<Listing, "id" | "providerId" | "category" | "title" | "price" | "pricingMode" | "currency" | "latitude" | "longitude" | "status" | "distanceKm">;
+
+export type HomeSummary = { totalListings: number; categories: { category: string; count: number }[]; nearbyListings: MapPin[] };
+
+/**
+ * Nearby listings for the map. Disabled until real coordinates exist, so no
+ * request is ever made for a placeholder location.
+ */
+export function useHomeSummary(coords: { lat: number; lng: number } | null, distanceKm: number) {
+  return useQuery<HomeSummary>({
+    queryKey: ["home-summary", coords?.lat, coords?.lng, distanceKm],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        lat: String(coords!.lat),
+        lng: String(coords!.lng),
+        distanceKm: String(distanceKm),
+        view: "map",
+      });
+      return fetchApi(`/home/summary?${params.toString()}`);
+    },
+    enabled: coords !== null,
+    staleTime: 2 * 60 * 1000,
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -44,6 +59,7 @@ export function useCreateListing() {
     mutationFn: (data) => fetchApi("/listings", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["home-summary"] });
       queryClient.invalidateQueries({ queryKey: ["listings"] });
     }
   });
@@ -55,6 +71,7 @@ export function useUpdateListing() {
     mutationFn: ({ id, data }) => fetchApi(`/listings/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     onSuccess: (data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["my-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["home-summary"] });
       queryClient.invalidateQueries({ queryKey: ["listing", id] });
     }
   });
@@ -66,6 +83,7 @@ export function useDeleteListing() {
     mutationFn: ({ id }) => fetchApi(`/listings/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["home-summary"] });
     }
   });
 }
@@ -76,6 +94,7 @@ export function useUpdateListingStatus() {
     mutationFn: ({ id, status }) => fetchApi(`/listings/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
     onSuccess: (data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["my-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["home-summary"] });
       queryClient.invalidateQueries({ queryKey: ["listing", id] });
     }
   });

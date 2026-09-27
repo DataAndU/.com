@@ -3,9 +3,11 @@
 import { ListingForm, ListingFormPayload } from "@/components/listing-form";
 import { useListing, useUpdateListing } from "@/lib/api/listings";
 import { ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
-export default function EditListingPage({ params }: { params: { id: string } }) {
+export default function EditListingPage() {
+  // Next 16 passes `params` to pages as a Promise; read route params via the hook.
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { data: listing, isLoading, error } = useListing(params.id);
   const updateMutation = useUpdateListing();

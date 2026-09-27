@@ -91,8 +91,10 @@ def test_clerk_proxy_does_not_forward_unsupported_browser_compression(monkeypatc
     captured = {}
 
     class MockClient:
+        is_closed = False
+
         def __init__(self, **kwargs):
-            pass
+            captured["client_kwargs"] = kwargs
 
         async def __aenter__(self):
             return self
@@ -109,6 +111,7 @@ def test_clerk_proxy_does_not_forward_unsupported_browser_compression(monkeypatc
             )
 
     monkeypatch.setattr("app.httpx.AsyncClient", MockClient)
+    monkeypatch.setattr("app._clerk_client", None)
     async def receive():
         return {"type": "http.request", "body": b"", "more_body": False}
 
@@ -129,3 +132,7 @@ def test_clerk_proxy_does_not_forward_unsupported_browser_compression(monkeypatc
     assert captured["headers"]["Accept-Encoding"] == "identity"
     assert captured["headers"]["Clerk-Proxy-Url"] == "https://pontreol.com/api/__clerk"
     assert captured["url"] == "https://frontend-api.clerk.dev/npm/@clerk/clerk-js"
+    # The pooled proxy client is shared by all visitors, so it must never
+    # persist upstream Set-Cookie values between requests.
+    jar = captured["client_kwargs"]["cookies"]
+    assert jar._policy.set_ok is not None and jar._policy.allowed_domains() == ()

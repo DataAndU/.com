@@ -4,7 +4,7 @@ import { useBooking, useUpdateBookingStatus, useQuoteBooking, useQuoteResponse, 
 import { format } from "date-fns";
 import { useState } from "react";
 import { ArrowLeft, Star } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMe } from "@/lib/api/account";
 import { MapContainer, TileLayer, Polyline, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -23,7 +23,9 @@ function RouteMap({ route }: { route: any }) {
   );
 }
 
-export default function RequestDetailPage({ params }: { params: { id: string } }) {
+export default function RequestDetailPage() {
+  // Next 16 passes `params` to pages as a Promise; read route params via the hook.
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { data: user } = useMe();
   const { data, isLoading } = useBooking(params.id);

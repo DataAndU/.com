@@ -56,11 +56,15 @@ def provider(provider_id: str, db: Session = Depends(get_db), viewer=Depends(cur
     target = db.get(User, provider_id)
     if not target or target.role != "provider":
         raise HTTPException(404, "Provider not found")
-    listings = list(db.scalars(select(Listing).where(
-        Listing.provider_id == provider_id, Listing.status == "active")))
-    from common import listing_json, iso
-    reviews = list(db.scalars(select(Review).where(Review.subject_id == provider_id)))
-    return {"provider": provider_json(target), "listings": [listing_json(db, x) for x in listings],
+    listings = db.scalars(select(Listing).where(
+        Listing.provider_id == provider_id, Listing.status == "active")
+        .order_by(Listing.created_at.desc(), Listing.id))
+    from common import listings_json, iso
+    reviews = list(db.scalars(select(Review).where(Review.subject_id == provider_id)
+                              .order_by(Review.created_at.desc())))
+    # Batched: one provider query + one photo query regardless of listing count.
+    return {"provider": provider_json(target),
+            "listings": listings_json(db, ((x, None) for x in listings)),
             "reviews": [dict(id=x.id, bookingId=x.booking_id, authorId=x.author_id,
                              subjectId=x.subject_id, rating=x.rating, comment=x.comment,
                              createdAt=iso(x.created_at)) for x in reviews]}

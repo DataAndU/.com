@@ -1,13 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchApi, User, Page, ProviderSummary, Listing } from "./client";
+import { fetchApi, isClientError, User, Page, ProviderSummary, Listing } from "./client";
 
 export const getMeQueryKey = () => ["account", "me"];
+
+/**
+ * The signed-in profile is shared by the sidebar, RoleGuard and pages through
+ * one React Query cache entry, so client navigation does not refetch it.
+ * This cache only drives UI; every API endpoint re-authorizes from the
+ * verified Clerk session and the database. It is invalidated by profile/role/
+ * verification mutations and cleared entirely when the Clerk user changes
+ * (see ClerkQueryClientCacheInvalidator).
+ */
+export const ME_STALE_TIME_MS = 5 * 60 * 1000;
 
 export function useMe() {
   return useQuery<User>({
     queryKey: getMeQueryKey(),
     queryFn: () => fetchApi("/me"),
-    retry: 1, // Only retry once for /me so we can catch unauthenticated/missing users quickly
+    staleTime: ME_STALE_TIME_MS,
+    gcTime: 30 * 60 * 1000,
+    // Refresh when the user returns to the tab so admin-side changes
+    // (suspension, verification, admin grant) surface without a reload.
+    refetchOnWindowFocus: true,
+    retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
   });
 }
 

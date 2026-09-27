@@ -4,11 +4,13 @@ import { useListing } from "@/lib/api/listings";
 import { useCreateServiceBooking, useCreateSpaceBooking, useCreateEquipmentBooking, useCreateDeliveryBooking, useCreateTravelBooking } from "@/lib/api/bookings";
 import { useCreateConversation } from "@/lib/api/messages";
 import { useMe } from "@/lib/api/account";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { MapPin, MessageSquare, Star, ArrowLeft } from "lucide-react";
 
-export default function ListingDetailPage({ params }: { params: { id: string } }) {
+export default function ListingDetailPage() {
+  // Next 16 passes `params` to pages as a Promise; read route params via the hook.
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { data: user } = useMe();
   const { data: listing, isLoading, isError, error, refetch } = useListing(params.id);
@@ -113,8 +115,11 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
 
     // We assume pickupLat and dropoffLat are used as the address labels for input to avoid creating too many states. Let's rename visually in UI.
     try {
-      const pRes = await fetch(`/api/geocode?q=${encodeURIComponent(pickupLat)}`).then(r => r.json());
-      const dRes = await fetch(`/api/geocode?q=${encodeURIComponent(dropoffLat)}`).then(r => r.json());
+      // Pickup and dropoff are independent lookups; resolve them in parallel.
+      const [pRes, dRes] = await Promise.all([
+        fetch(`/api/geocode?q=${encodeURIComponent(pickupLat)}`).then(r => r.json()),
+        fetch(`/api/geocode?q=${encodeURIComponent(dropoffLat)}`).then(r => r.json()),
+      ]);
       
       if (!pRes?.results?.[0]) return setBookingError("Pickup address not found");
       if (!dRes?.results?.[0]) return setBookingError("Dropoff address not found");

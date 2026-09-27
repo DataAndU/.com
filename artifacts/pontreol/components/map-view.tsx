@@ -7,7 +7,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
-import { Listing } from "@/lib/api/client";
+import type { MapPin } from "@/lib/api/listings";
 import { useRouter } from "next/navigation";
 
 // Self-contained icon: pins do not depend on an external image CDN.
@@ -19,7 +19,7 @@ const listingPin = L.divIcon({
   popupAnchor: [0, -42],
 });
 
-function MapUpdater({ center, listings }: { center: [number, number]; listings: Listing[] }) {
+function MapUpdater({ center, zoom, listings }: { center: [number, number]; zoom: number; listings: MapPin[] }) {
   const map = useMap();
   const [lat, lng] = center;
   const positionsKey = JSON.stringify(listings.map(listing => [listing.latitude, listing.longitude]));
@@ -28,13 +28,13 @@ function MapUpdater({ center, listings }: { center: [number, number]; listings: 
     if (positions.length) {
       map.fitBounds(L.latLngBounds([[lat, lng], ...positions]), { padding: [40, 40], maxZoom: 15 });
     } else {
-      map.setView([lat, lng], 13);
+      map.setView([lat, lng], zoom);
     }
-  }, [lat, lng, positionsKey, map]);
+  }, [lat, lng, zoom, positionsKey, map]);
   return null;
 }
 
-export default function MapView({ listings, center }: { listings: Listing[]; center: [number, number] }) {
+export default function MapView({ listings, center, zoom = 13 }: { listings: MapPin[]; center: [number, number]; zoom?: number }) {
   const router = useRouter();
   const locatedListings = listings.filter(listing =>
     Number.isFinite(listing.latitude) && Number.isFinite(listing.longitude) &&
@@ -42,8 +42,8 @@ export default function MapView({ listings, center }: { listings: Listing[]; cen
 
   return (
     <MapContainer 
-      center={center} 
-      zoom={13} 
+      center={center}
+      zoom={zoom}
       className="w-full h-full"
       zoomControl={false}
     >
@@ -51,7 +51,7 @@ export default function MapView({ listings, center }: { listings: Listing[]; cen
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <MapUpdater center={center} listings={locatedListings} />
+      <MapUpdater center={center} zoom={zoom} listings={locatedListings} />
       
       <MarkerClusterGroup showCoverageOnHover={false} spiderfyOnMaxZoom zoomToBoundsOnClick>
         {locatedListings.map(listing => (

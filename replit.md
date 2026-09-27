@@ -29,7 +29,10 @@ Location-based availability marketplace connecting buyers and providers. Marketp
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- `RoleGuard` and the cached `/api/me` query are UX only; the API re-verifies the Clerk JWT, suspension, role and admin flag on every request. Pages render in parallel with `/api/me`.
+- The home map never queries a placeholder location: `useUserLocation` (`lib/geolocation.ts`) gates `/home/summary?view=map` on real GPS or searched coordinates.
+- Geo search is a PostgreSQL lat/lng bounding box (partial index) plus exact haversine; PostGIS is the documented future path (`docs/performance.md`).
+- API timing lines (`pontreol.timing`, `slow=1` above `SLOW_REQUEST_MS`) log route templates only; DB pool size is env-tunable.
 
 ## Product
 
@@ -50,7 +53,8 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 
 - The shared preview proxy routes `/api` to FastAPI; browser fetches must stay same-origin. Do not add a hardcoded localhost rewrite to Next.js.
 - Python packages are managed by the root `pyproject.toml` / `uv.lock`; run through `uv run`.
-- Production schema changes require an explicit migration. Application startup must not create tables.
+- Production schema changes require an explicit migration. Application startup must not create tables. SQL migrations live in `artifacts/api-server/migrations/`.
+- Next 16 passes page `params` as a Promise; client pages must use `useParams()`.
 
 ## Pointers
 

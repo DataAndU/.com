@@ -1,5 +1,6 @@
 import os
 import asyncio
+from http.cookiejar import CookieJar, DefaultCookiePolicy
 from contextlib import asynccontextmanager
 
 import httpx
@@ -15,7 +16,30 @@ from interactions import router as interactions_router
 from listings import router as listings_router
 from media import router as media_router
 from verification import router as verification_router
+from observability import TimingMiddleware
 from outbox import run_worker
+
+# One pooled client keeps TLS connections to Clerk warm instead of paying a
+# fresh TCP+TLS handshake for every proxied sign-in/session request.
+_clerk_client: httpx.AsyncClient | None = None
+
+
+def _no_cookie_jar():
+    """The proxy is shared by every visitor: it must never remember upstream
+    Set-Cookie values, or one user's session could be replayed for another.
+    Browser cookies are forwarded explicitly via the Cookie header only."""
+    return CookieJar(policy=DefaultCookiePolicy(allowed_domains=[]))
+
+
+def _clerk_http():
+    global _clerk_client
+    if _clerk_client is None or _clerk_client.is_closed:
+        _clerk_client = httpx.AsyncClient(
+            cookies=_no_cookie_jar(),
+            timeout=30, follow_redirects=False,
+            limits=httpx.Limits(max_connections=50, max_keepalive_connections=10,
+                                keepalive_expiry=60))
+    return _clerk_client
 
 
 @asynccontextmanager
@@ -27,6 +51,8 @@ async def lifespan(app):
     finally:
         stop.set()
         await worker
+        if _clerk_client is not None:
+            await _clerk_client.aclose()
 
 app = FastAPI(title="Api", version="0.1.0",
               description="Pontreol marketplace API",
@@ -38,6 +64,7 @@ origins = [x.strip() for x in os.getenv("ALLOWED_ORIGINS", "").split(",") if x.s
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True,
                    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
                    allow_headers=["Content-Type"])
+app.add_middleware(TimingMiddleware)
 
 
 @app.get("/api/healthz")
@@ -69,10 +96,9 @@ async def clerk_proxy(path: str, request: Request):
     client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
     if client_ip: headers["X-Forwarded-For"] = client_ip
     try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
-            upstream = await client.request(request.method,
-                f"https://frontend-api.clerk.dev/{path}",
-                params=request.query_params, headers=headers, content=await request.body())
+        upstream = await _clerk_http().request(request.method,
+            f"https://frontend-api.clerk.dev/{path}",
+            params=request.query_params, headers=headers, content=await request.body())
     except httpx.HTTPError as exc:
         raise HTTPException(502, "Clerk proxy unavailable") from exc
     # httpx decodes compressed bodies, so forwarding Content-Encoding would make

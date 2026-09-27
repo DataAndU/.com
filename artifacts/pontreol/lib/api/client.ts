@@ -1,3 +1,15 @@
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+/** Client errors (auth, permission, validation, not found) will not succeed on retry. */
+export function isClientError(error: unknown): boolean {
+  return error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429;
+}
+
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `/api${endpoint}`;
   const response = await fetch(url, {
@@ -10,9 +22,11 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
   
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.detail || `API Error: ${response.status}`);
+    const detail = typeof errorData?.detail === "string" ? errorData.detail : null;
+    throw new ApiError(detail || `API Error: ${response.status}`, response.status);
   }
-  
+
+  if (response.status === 204) return undefined as T;
   return response.json();
 }
 

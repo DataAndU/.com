@@ -2,10 +2,12 @@
 
 import { useProvider } from "@/lib/api/account";
 import { ArrowLeft, Star, MapPin, CheckCircle2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 
-export default function ProviderProfilePage({ params }: { params: { id: string } }) {
+export default function ProviderProfilePage() {
+  // Next 16 passes `params` to pages as a Promise; read route params via the hook.
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { data, isLoading } = useProvider(params.id);
 
@@ -56,7 +58,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                 <div key={listing.id} onClick={() => router.push(`/discover/${listing.id}`)} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm flex flex-col group cursor-pointer hover:border-primary/50 transition-colors">
                   <div className="aspect-video bg-input relative overflow-hidden">
                     {listing.photos && listing.photos.length > 0 ? (
-                      <img src={listing.photos[0].objectPath} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                      <img loading="lazy" decoding="async" src={listing.photos[0].objectPath} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground">No Image</div>
                     )}

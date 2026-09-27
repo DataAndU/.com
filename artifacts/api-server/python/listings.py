@@ -1,7 +1,7 @@
 import math
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -141,6 +141,8 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
         stmt = stmt.where(or_(Listing.title.ilike(term), Listing.description.ilike(term)))
     if priceMin is not None: stmt = stmt.where(Listing.price >= priceMin)
     if priceMax is not None: stmt = stmt.where(Listing.price <= priceMax)
+    if lat is not None and lng is not None:
+        stmt = stmt.where(bounding_box(lat, lng, distanceKm))
     if sort == "priceLow": stmt = stmt.order_by(Listing.price)
     elif sort == "priceHigh": stmt = stmt.order_by(Listing.price.desc())
     elif sort not in {"relevance", "distance"}: raise HTTPException(422, "Unknown sort")
@@ -165,9 +167,7 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
                 continue
         distance = None
         if lat is not None and lng is not None:
-            p1, p2 = math.radians(lat), math.radians(row.latitude)
-            dlat, dlng = p2-p1, math.radians(row.longitude-lng)
-            distance = 6371 * 2 * math.asin(math.sqrt(math.sin(dlat/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dlng/2)**2))
+            distance = haversine_km(lat, lng, row.latitude, row.longitude)
             if distance > distanceKm: continue
         output.append((row, distance))
     if sort == "distance":
@@ -211,23 +211,82 @@ def delete(listing_id: str, db: Session = Depends(get_db), user=Depends(require_
     listing.status = "archived"
 
 
+EARTH_RADIUS_KM = 6371.0
+KM_PER_DEGREE_LAT = 111.32
+HOME_MAX_RESULTS = 200
+
+
+def haversine_km(lat1, lng1, lat2, lng2):
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dlat, dlng = p2 - p1, math.radians(lng2 - lng1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlng / 2) ** 2
+    return 2 * EARTH_RADIUS_KM * math.asin(min(1.0, math.sqrt(a)))
+
+
+def bounding_box(lat, lng, radius_km):
+    """SQL predicate selecting listings inside a lat/lng box that fully
+    contains the search circle. Uses the (latitude, longitude) indexes; exact
+    great-circle distance is checked afterwards on the few candidates.
+    Future scaling path: PostGIS geography + GiST index + ST_DWithin."""
+    dlat = radius_km / KM_PER_DEGREE_LAT
+    conditions = [Listing.latitude.between(max(-90.0, lat - dlat), min(90.0, lat + dlat))]
+    cos_lat = math.cos(math.radians(lat))
+    if cos_lat > 1e-6 and abs(lat) + dlat < 90:
+        dlng = radius_km / (KM_PER_DEGREE_LAT * cos_lat)
+        if dlng < 180:
+            west, east = lng - dlng, lng + dlng
+            if west < -180:
+                conditions.append(or_(Listing.longitude >= west + 360, Listing.longitude <= east))
+            elif east > 180:
+                conditions.append(or_(Listing.longitude >= west, Listing.longitude <= east - 360))
+            else:
+                conditions.append(Listing.longitude.between(west, east))
+    # Near the poles or for huge radii the box spans every longitude.
+    return and_(*conditions)
+
+
+def map_pin_json(listing, distance):
+    """Compact projection for map pins (no provider/photo lookups, no description)."""
+    return dict(id=listing.id, providerId=listing.provider_id, category=listing.category,
+                title=listing.title, price=listing.price, pricingMode=listing.pricing_mode,
+                currency=listing.currency, latitude=listing.latitude,
+                longitude=listing.longitude, status=listing.status, distanceKm=distance)
+
+
 @router.get("/home/summary")
-def home(db: Session = Depends(get_db), user=Depends(current_user), lat: float | None = None,
-         lng: float | None = None, distanceKm: float = 25):
+def home(db: Session = Depends(get_db), user=Depends(current_user),
+         lat: Annotated[float | None, Query(ge=-90, le=90)] = None,
+         lng: Annotated[float | None, Query(ge=-180, le=180)] = None,
+         distanceKm: Annotated[float, Query(gt=0, le=500)] = 25,
+         view: Literal["full", "map"] = "full"):
     counts = {category: count for category, count in db.execute(
         select(Listing.category, func.count()).where(
             Listing.status == "active").group_by(Listing.category))}
     categories = [{"category": x, "count": counts.get(x, 0)} for x in sorted(CATEGORIES)]
-    rows = db.scalars(select(Listing).where(Listing.status == "active").limit(100))
+    stmt = select(Listing).where(Listing.status == "active")
     nearby = []
-    for row in rows:
-        distance = None
-        if lat is not None and lng is not None:
-            distance = 111 * math.sqrt((row.latitude-lat)**2 + ((row.longitude-lng)*math.cos(math.radians(lat)))**2)
-            if distance > distanceKm: continue
-        nearby.append((row, distance))
+    if lat is not None and lng is not None:
+        # Nearest-first by a cheap planar approximation so LIMIT keeps the
+        # closest candidates; exact haversine below trims the box corners.
+        cos_lat = math.cos(math.radians(lat))
+        approx = ((Listing.latitude - lat) * (Listing.latitude - lat) +
+                  (Listing.longitude - lng) * (Listing.longitude - lng) * (cos_lat * cos_lat))
+        rows = db.scalars(stmt.where(bounding_box(lat, lng, distanceKm))
+                          .order_by(approx, Listing.id).limit(HOME_MAX_RESULTS * 2))
+        for row in rows:
+            distance = haversine_km(lat, lng, row.latitude, row.longitude)
+            if distance <= distanceKm:
+                nearby.append((row, round(distance, 3)))
+        nearby.sort(key=lambda item: item[1])
+        nearby = nearby[:HOME_MAX_RESULTS]
+    else:
+        # Without coordinates keep the historical oldest-first sample of 100.
+        rows = db.scalars(stmt.order_by(Listing.created_at, Listing.id).limit(100))
+        nearby = [(row, None) for row in rows]
+    listings = ([map_pin_json(row, distance) for row, distance in nearby] if view == "map"
+                else listings_json(db, nearby))
     return {"totalListings": sum(counts.values()), "categories": categories,
-            "nearbyListings": listings_json(db, nearby)}
+            "nearbyListings": listings}
 
 
 @router.get("/geocode")

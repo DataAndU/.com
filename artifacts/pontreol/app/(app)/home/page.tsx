@@ -2,64 +2,75 @@
 
 import { useHomeSummary } from "@/lib/api/listings";
 import { fetchApi } from "@/lib/api/client";
-import { useState, useEffect } from "react";
+import { useUserLocation } from "@/lib/geolocation";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Navigation, Search } from "lucide-react";
 
-const MapView = dynamic(() => import("@/components/map-view"), { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center bg-card"><div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div> });
+const loadMapView = () => import("@/components/map-view");
+const MapView = dynamic(loadMapView, { ssr: false, loading: () => <MapPlaceholder /> });
+
+const RADIUS_KM = 10;
+// Neutral overview used only for display when no location is known. It is
+// never sent to the API as the user's position.
+const OVERVIEW_CENTER: [number, number] = [22.35, 78.67];
+const OVERVIEW_ZOOM = 5;
+
+function MapPlaceholder() {
+  return <div className="w-full h-full flex items-center justify-center bg-card"><div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
+}
 
 export default function HomePage() {
-  const [lat, setLat] = useState<number>(28.6139); // Default to New Delhi
-  const [lng, setLng] = useState<number>(77.2090);
+  const { state: location, locate, setSearched } = useUserLocation();
   const [address, setAddress] = useState("");
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
-  const { data: summary, isLoading, error } = useHomeSummary(lat, lng, 10);
+  const coords = location.status === "ready" ? location.coords : null;
+  const { data: summary, isLoading, error } = useHomeSummary(coords, RADIUS_KM);
 
-  useEffect(() => {
-    // Try to get user location
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        setLat(pos.coords.latitude);
-        setLng(pos.coords.longitude);
-      }, () => {
-        // Fallback to default
-      });
-    }
-  }, []);
+  // Download the Leaflet chunk while the location permission is pending.
+  useEffect(() => { void loadMapView(); }, []);
+
+  const nearbyCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const listing of summary?.nearbyListings || []) counts[listing.category] = (counts[listing.category] || 0) + 1;
+    return counts;
+  }, [summary]);
 
   const handleManualSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSearchError("");
     if (!address.trim() || address.length < 3) return;
     setSearching(true);
     try {
       const data = await fetchApi<{ results: { label: string; latitude: number; longitude: number }[] }>(`/geocode?q=${encodeURIComponent(address)}`);
       if (data && data.results && data.results.length > 0) {
-        setLat(data.results[0].latitude);
-        setLng(data.results[0].longitude);
+        setSearched({ lat: data.results[0].latitude, lng: data.results[0].longitude });
       } else {
-        alert("Location not found");
+        setSearchError("Location not found. Try a nearby city or landmark.");
       }
     } catch (e) {
-      console.error(e);
+      setSearchError(e instanceof Error ? e.message : "Could not search that location. Please try again.");
     } finally {
       setSearching(false);
     }
   };
+
+  const locationMessage =
+    location.status === "locating" ? "Finding your location…" :
+    location.status === "denied" ? "Location access is off. Search an address or city to see nearby listings, or allow location in your browser settings and tap the GPS button." :
+    location.status === "unavailable" ? (location.reason === "timeout"
+      ? "Couldn't get your location in time. Tap the GPS button to retry, or search an address or city."
+      : "Your location isn't available on this device. Search an address or city to see nearby listings.") :
+    null;
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden relative">
       {/* Keep controls outside Leaflet's layers and below the mobile navigation. */}
       <div className="shrink-0 w-full p-3 border-b border-border bg-background">
         <form onSubmit={handleManualSearch} className="bg-card border border-border shadow-xl rounded-xl flex items-center p-2 gap-2">
-          <button type="button" onClick={() => {
-            if ("geolocation" in navigator) {
-              navigator.geolocation.getCurrentPosition((pos) => {
-                setLat(pos.coords.latitude);
-                setLng(pos.coords.longitude);
-              });
-            }
-          }} className="p-2 text-primary hover:bg-white/5 rounded-lg" title="Use GPS">
+          <button type="button" onClick={() => { setSearchError(""); locate(); }} className="p-2 text-primary hover:bg-white/5 rounded-lg" title="Use GPS" aria-label="Use my current location">
             <Navigation className="w-5 h-5" />
           </button>
           <input 
@@ -78,24 +89,30 @@ export default function HomePage() {
         {summary && (
           <div className="mt-2 text-xs space-y-2">
             <div>
-              <span className="font-bold">{summary.nearbyListings.length}</span> listings within 10 km · Tap a pin to preview
+              <span className="font-bold">{summary.nearbyListings.length}</span> listings within {RADIUS_KM} km · Tap a pin to preview
             </div>
             <div className="flex flex-wrap gap-2">
               {summary.categories.map(c => (
                 <span key={c.category} className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded uppercase font-semibold">
-                  {c.category} {summary.nearbyListings.filter(listing => listing.category === c.category).length}
+                  {c.category} {nearbyCounts[c.category] || 0}
                 </span>
               ))}
             </div>
           </div>
         )}
         <div role="status" className="text-xs text-muted-foreground mt-2">
-          {isLoading ? "Loading nearby listings…" : error ? "Could not load listings. Please try again." : summary?.nearbyListings.length === 0 ? "No active listings within 10 km. Search another location or add a listing from My Listings." : null}
+          {searchError || locationMessage || (isLoading ? "Loading nearby listings…" : error ? "Could not load listings. Please try again." : summary?.nearbyListings.length === 0 ? `No active listings within ${RADIUS_KM} km. Search another location or add a listing from My Listings.` : null)}
         </div>
       </div>
 
       <div className="flex-1 min-h-0 relative z-0">
-        <MapView listings={summary?.nearbyListings || []} center={[lat, lng]} />
+        {location.status === "locating" ? (
+          <MapPlaceholder />
+        ) : coords ? (
+          <MapView listings={summary?.nearbyListings || []} center={[coords.lat, coords.lng]} />
+        ) : (
+          <MapView listings={[]} center={OVERVIEW_CENTER} zoom={OVERVIEW_ZOOM} />
+        )}
       </div>
     </div>
   );

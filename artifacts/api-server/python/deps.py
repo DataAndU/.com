@@ -16,7 +16,37 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgres://"):]
 elif DATABASE_URL.startswith("postgresql://") and "+psycopg" not in DATABASE_URL:
     DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgresql://"):]
-engine = create_engine(DATABASE_URL, pool_pre_ping=True) if DATABASE_URL else None
+
+
+def _env_int(name, default):
+    try:
+        return int(os.getenv(name, "") or default)
+    except ValueError:
+        return default
+
+
+def _engine_options():
+    """Bounded, health-checked pool. Each API process keeps at most
+    DB_POOL_SIZE + DB_MAX_OVERFLOW connections; size this against the
+    database's connection limit multiplied by the number of API instances."""
+    return dict(
+        pool_pre_ping=True,  # transparently replaces connections dropped by the server/proxy
+        pool_size=_env_int("DB_POOL_SIZE", 5),
+        max_overflow=_env_int("DB_MAX_OVERFLOW", 5),
+        pool_timeout=_env_int("DB_POOL_TIMEOUT", 10),
+        # Serverless/managed Postgres (e.g. Neon on Replit) and PgBouncer close
+        # idle connections; recycle before that happens.
+        pool_recycle=_env_int("DB_POOL_RECYCLE", 300),
+        pool_use_lifo=True,  # lets surplus idle connections age out under light load
+        connect_args={"connect_timeout": _env_int("DB_CONNECT_TIMEOUT", 10),
+                      "application_name": os.getenv("DB_APPLICATION_NAME", "pontreol-api")},
+    )
+
+
+engine = create_engine(DATABASE_URL, **_engine_options()) if DATABASE_URL else None
+if engine is not None:
+    import observability
+    observability.instrument_engine(engine)
 SessionLocal = sessionmaker(engine, expire_on_commit=False) if engine else None
 
 

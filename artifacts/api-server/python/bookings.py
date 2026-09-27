@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -206,6 +207,27 @@ def list_bookings(db: Session = Depends(get_db), user=Depends(current_user),
     return {"items": [booking_json(x) for x in rows], "nextCursor": None}
 
 
+# Delivery pickup/dropoff points are fixed per booking, so the public OSRM
+# route is cached in-process instead of re-requested on every detail view.
+_ROUTE_TTL_SECONDS = 3600
+_ROUTE_CACHE_MAX = 256
+_route_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _route_cache_get(key):
+    entry = _route_cache.get(key)
+    if entry and entry[0] > time.monotonic():
+        return entry[1]
+    _route_cache.pop(key, None)
+    return None
+
+
+def _route_cache_put(key, route):
+    if len(_route_cache) >= _ROUTE_CACHE_MAX:
+        _route_cache.pop(next(iter(_route_cache)), None)
+    _route_cache[key] = (time.monotonic() + _ROUTE_TTL_SECONDS, route)
+
+
 @router.get("/bookings/{booking_id}")
 def get_booking(booking_id: str, db: Session = Depends(get_db), user=Depends(current_user)):
     booking = participant(db, booking_id, user)
@@ -215,13 +237,16 @@ def get_booking(booking_id: str, db: Session = Depends(get_db), user=Depends(cur
             pickup, dropoff = booking.details["pickup"], booking.details["dropoff"]
             coordinates = (f'{pickup["longitude"]},{pickup["latitude"]};'
                            f'{dropoff["longitude"]},{dropoff["latitude"]}')
-            response = httpx.get(f"https://router.project-osrm.org/route/v1/driving/{coordinates}",
-                                 params={"overview": "full", "geometries": "geojson"}, timeout=8,
-                                 headers={"User-Agent": "Pontreol/1.0 (https://pontreol.com)"})
-            response.raise_for_status()
-            routes = response.json().get("routes", [])
-            if not routes: raise ValueError
-            route = {"geometry": routes[0]["geometry"], "provider": "OSRM"}
+            route = _route_cache_get(coordinates)
+            if route is None:
+                response = httpx.get(f"https://router.project-osrm.org/route/v1/driving/{coordinates}",
+                                     params={"overview": "full", "geometries": "geojson"}, timeout=8,
+                                     headers={"User-Agent": "Pontreol/1.0 (https://pontreol.com)"})
+                response.raise_for_status()
+                routes = response.json().get("routes", [])
+                if not routes: raise ValueError
+                route = {"geometry": routes[0]["geometry"], "provider": "OSRM"}
+                _route_cache_put(coordinates, route)
         except (httpx.HTTPError, KeyError, TypeError, ValueError):
             raise HTTPException(503, "Free route service is temporarily unavailable")
     return {"booking": booking_json(booking), "route": route}

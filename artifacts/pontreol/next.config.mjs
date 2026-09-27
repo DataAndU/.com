@@ -16,6 +16,7 @@ for (const value of (process.env.ALLOWED_ORIGINS || "").split(",")) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  poweredByHeader: false,
   // Restrict cross-origin dev assets/HMR to local preview and configured
   // Replit hosts. This is intentionally not a wildcard.
   allowedDevOrigins: [...allowedDevOrigins],

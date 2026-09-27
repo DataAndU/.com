@@ -76,28 +76,35 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
         if (distanceKm && (lat || newFilters.lat)) newFilters.distanceKm = distanceKm;
       }
     } else {
-      // Travel specific geocoding
+      // Travel specific geocoding: origin and destination resolve in parallel.
+      const lookup = (query: string) =>
+        query.length >= 3
+          ? fetchApi<{ results: { latitude: number; longitude: number }[] }>(`/geocode?q=${encodeURIComponent(query)}`)
+          : Promise.resolve(null);
+      const [origin, destination] = await Promise.allSettled([lookup(travelOrigin), lookup(travelDest)]);
       if (travelOrigin.length >= 3) {
-        try {
-          const data = await fetchApi<{ results: { latitude: number; longitude: number }[] }>(`/geocode?q=${encodeURIComponent(travelOrigin)}`);
-          if (!data.results?.length) throw new Error(`Could not find the travel origin "${travelOrigin}".`);
-          newFilters.originLat = data.results[0].latitude.toString();
-          newFilters.originLng = data.results[0].longitude.toString();
-        } catch (err) {
-          setGeocodeError(err instanceof Error ? err.message : "Could not find the travel origin.");
+        if (origin.status === "rejected") {
+          setGeocodeError(origin.reason instanceof Error ? origin.reason.message : "Could not find the travel origin.");
           return;
         }
+        if (!origin.value?.results?.length) {
+          setGeocodeError(`Could not find the travel origin "${travelOrigin}".`);
+          return;
+        }
+        newFilters.originLat = origin.value.results[0].latitude.toString();
+        newFilters.originLng = origin.value.results[0].longitude.toString();
       }
       if (travelDest.length >= 3) {
-        try {
-          const data = await fetchApi<{ results: { latitude: number; longitude: number }[] }>(`/geocode?q=${encodeURIComponent(travelDest)}`);
-          if (!data.results?.length) throw new Error(`Could not find the travel destination "${travelDest}".`);
-          newFilters.destinationLat = data.results[0].latitude.toString();
-          newFilters.destinationLng = data.results[0].longitude.toString();
-        } catch (err) {
-          setGeocodeError(err instanceof Error ? err.message : "Could not find the travel destination.");
+        if (destination.status === "rejected") {
+          setGeocodeError(destination.reason instanceof Error ? destination.reason.message : "Could not find the travel destination.");
           return;
         }
+        if (!destination.value?.results?.length) {
+          setGeocodeError(`Could not find the travel destination "${travelDest}".`);
+          return;
+        }
+        newFilters.destinationLat = destination.value.results[0].latitude.toString();
+        newFilters.destinationLng = destination.value.results[0].longitude.toString();
       }
       if (departureFrom) newFilters.departureFrom = new Date(departureFrom).toISOString();
       if (departureTo) newFilters.departureTo = new Date(departureTo).toISOString();
@@ -211,7 +218,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                 <div key={listing.id} onClick={() => router.push(`/discover/${listing.id}`)} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm flex flex-col group cursor-pointer hover:border-primary/50 transition-colors">
                   <div className="aspect-video bg-input relative overflow-hidden">
                     {listing.photos && listing.photos.length > 0 ? (
-                      <img src={listing.photos[0].objectPath} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                      <img loading="lazy" decoding="async" src={listing.photos[0].objectPath} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground">No Image</div>
                     )}

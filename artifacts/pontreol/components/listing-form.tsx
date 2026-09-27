@@ -204,8 +204,8 @@ export function ListingForm({ initial, defaultCategory, mutationPending, onSubmi
       }
       const categoryAttributes = buildAttributes();
       setUploading(files.length > 0);
-      const uploaded: Media[] = [];
-      for (const file of files) uploaded.push(await uploadMedia(file, "listingPhoto"));
+      // Independent uploads run concurrently; Promise.all preserves photo order.
+      const uploaded: Media[] = await Promise.all(files.map((file) => uploadMedia(file, "listingPhoto")));
       await onSubmit({
         category,
         title: title.trim(),

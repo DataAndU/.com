@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, Float,
-                        ForeignKey, Integer, JSON, String, Text, UniqueConstraint)
+                        ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, text)
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -56,6 +56,9 @@ class Listing(Base):
     contact_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
+    # Bounding-box lookups for /home/summary and /listings (migration 0001).
+    __table_args__ = (Index("ix_listings_active_lat_lng", "latitude", "longitude",
+                            postgresql_where=text("status = 'active'")),)
 
 
 class Media(Base):
@@ -122,6 +125,7 @@ class Message(Base):
     sender_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     text = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=now, index=True)
+    __table_args__ = (Index("ix_messages_conversation_created", "conversation_id", "created_at"),)
 
 
 class ContactUsage(Base):
@@ -172,6 +176,7 @@ class Notification(Base):
     resource_id = Column(String(36))
     read_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    __table_args__ = (Index("ix_notifications_user_created", "user_id", "created_at", "id"),)
 
 
 class NotificationPreference(Base):

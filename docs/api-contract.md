@@ -47,7 +47,7 @@ Category `attributes` are exact camelCase objects:
 | Method/path | Request | Success response |
 |---|---|---|
 | `GET /geocode?q=` | query length 3–200 | `{ results: [{ label, latitude, longitude }] }`; server-cached/rate-limited Nominatim |
-| `GET /home/summary?lat=&lng=&distanceKm=` | optional coordinates | `{ totalListings, categories: [{ category, count }], nearbyListings: Listing[] }` |
+| `GET /home/summary?lat=&lng=&distanceKm=&view=` | optional coordinates (lat −90..90, lng −180..180, `distanceKm` 0 < d ≤ 500, default 25); `view=full` (default) or `map` | `{ totalListings, categories: [{ category, count }], nearbyListings: Listing[] }`. With coordinates: listings within `distanceKm` (great-circle), nearest first, max 200. Without: first 100 active listings, `distanceKm: null`. `view=map` returns compact pins `{ id, providerId, category, title, price, pricingMode, currency, latitude, longitude, status, distanceKm }` (no provider/photos/description) |
 | `GET /listings?category=&search=&priceMin=&priceMax=&lat=&lng=&distanceKm=&sort=&cursor=&limit=` | sort `relevance|distance|priceLow|priceHigh` | `Page<Listing>` |
 | `GET /listings/{id}` | — | `Listing` |
 | `GET /my/listings` | provider only | `{ items: Listing[] }` |

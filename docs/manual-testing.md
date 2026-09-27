@@ -49,6 +49,15 @@ An administrator configures plans, discounts and the free monthly contact limit.
 - Razorpay defaults to `RAZORPAY_MODE=test` and accepts only matching `RAZORPAY_TEST_*` secrets. Live payment activation requires separate operational approval, explicit `RAZORPAY_MODE=live`, all distinct `RAZORPAY_LIVE_*` credentials, and a final real-charge confirmation in the UI. Never use a live checkout for routine testing.
 - Production schema changes require an explicit migration; the development schema command must not be used against production.
 
+## Performance / mobile checks (Android Chrome)
+
+1. Fresh profile, open `/home`: the permission prompt appears; while it is open the map area shows a spinner and **no** `/api/home/summary` request is made (DevTools → Network).
+2. Allow: exactly one `/api/home/summary?...&view=map` request for your real coordinates.
+3. Deny (or block in site settings): no summary request; the page explains how to search an address; searching loads listings for that place.
+4. Navigate Map → Discover → Messages → Map: `/api/me` is requested once per 5 minutes at most (not on every navigation), and returning to Map reuses the cached result.
+5. Sign out, then sign in as a different account: no data from the first account is shown (the query cache is cleared on user change).
+6. Sign-in page renders the Clerk form on Android Chrome (the proxy still forces `Accept-Encoding: identity`).
+
 ## Automated checks
 
 The backend tests isolate marketplace records in a temporary PostgreSQL schema and use test-only identity overrides. They do not bypass production authentication or prove a real Google OAuth or Razorpay sandbox checkout succeeded. Test payments are isolated from live paid access, payment history, webhook receipts, and live revenue.

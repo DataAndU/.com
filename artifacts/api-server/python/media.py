@@ -16,13 +16,24 @@ router = APIRouter()
 TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 
+_storage_client = None
+
+
+def _client():
+    # Credential discovery is slow; reuse one thread-safe client per process.
+    global _storage_client
+    if _storage_client is None:
+        _storage_client = storage.Client()
+    return _storage_client
+
+
 def bucket():
     bucket_id = os.getenv("DEFAULT_OBJECT_STORAGE_BUCKET_ID")
     private_dir = os.getenv("PRIVATE_OBJECT_DIR", "").strip("/")
     if not bucket_id or not private_dir:
         raise HTTPException(503, "Durable cloud storage is not configured")
     try:
-        return storage.Client().bucket(bucket_id), private_dir
+        return _client().bucket(bucket_id), private_dir
     except Exception as exc:
         raise HTTPException(503, "Durable cloud storage is unavailable") from exc
 

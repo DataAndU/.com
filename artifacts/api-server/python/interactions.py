@@ -67,10 +67,23 @@ class ConversationBody(BaseModel):
     initialMessage: str = Field(min_length=1, max_length=4000)
 
 
-def conversation_json(db, c, viewer):
-    last = db.scalar(select(Message).where(Message.conversation_id == c.id).order_by(Message.created_at.desc()).limit(1))
+def last_message_previews(db, conversation_ids):
+    """Latest message text per conversation in one query (avoids N+1)."""
+    if not conversation_ids:
+        return {}
+    ranked = select(Message.conversation_id, Message.text, func.row_number().over(
+        partition_by=Message.conversation_id,
+        order_by=(Message.created_at.desc(), Message.id.desc())).label("rank")).where(
+        Message.conversation_id.in_(conversation_ids)).subquery()
+    return {cid: text for cid, text in db.execute(
+        select(ranked.c.conversation_id, ranked.c.text).where(ranked.c.rank == 1))}
+
+
+def conversation_json(db, c, viewer, preview=None):
+    if preview is None:
+        preview = last_message_previews(db, [c.id]).get(c.id, "")
     return dict(id=c.id, listingId=c.listing_id, buyerId=c.buyer_id, providerId=c.provider_id,
-                lastMessageAt=iso(c.last_message_at), lastMessagePreview=last.text[:120] if last else "",
+                lastMessageAt=iso(c.last_message_at), lastMessagePreview=preview[:120],
                 unreadCount=0, createdAt=iso(c.created_at))
 
 
@@ -109,7 +122,8 @@ def conversations(cursor: str | None = None, limit: int = Query(50, ge=1, le=100
         Conversation.buyer_id == user.id, Conversation.provider_id == user.id))
     rows, next_cursor = keyset_page(db, stmt, Conversation.last_message_at,
                                     Conversation.id, limit, cursor)
-    return {"items": [conversation_json(db, x, user) for x in rows],
+    previews = last_message_previews(db, [x.id for x in rows])
+    return {"items": [conversation_json(db, x, user, previews.get(x.id, "")) for x in rows],
             "nextCursor": next_cursor}
 
 
