@@ -26,14 +26,42 @@ def main():
     if not allowed:
         raise SystemExit("ALLOWED_ORIGINS has no https origin")
     client = spaces.make_client()
-    client.head_bucket(Bucket=bucket)
-    client.put_bucket_cors(Bucket=bucket, CORSConfiguration={"CORSRules": [{
-        "AllowedOrigins": allowed,
-        "AllowedMethods": ["PUT", "GET", "HEAD"],
-        "AllowedHeaders": ["Content-Type"],
-        "MaxAgeSeconds": 3600,
-    }]})
-    acl = client.get_bucket_acl(Bucket=bucket)
+    try:
+        client.head_bucket(Bucket=bucket)
+    except spaces.StorageErrors as exc:
+        status = getattr(exc, "response", {}).get("ResponseMetadata", {}).get("HTTPStatusCode")
+        if status == 404:
+            raise SystemExit(
+                f"No Space named '{bucket}' was found in region '{region}'.\n"
+                "Check Spaces Object Storage in DigitalOcean: set SPACES_BUCKET to the Space's exact "
+                "name and SPACES_REGION to its region code (e.g. blr1, sgp1), then redeploy.")
+        if status in (401, 403):
+            raise SystemExit(
+                f"The Spaces key was refused for '{bucket}'. Check SPACES_KEY / SPACES_SECRET and that "
+                "the key has Read/Write/Delete access to this Space.")
+        raise SystemExit(f"Could not reach the Space '{bucket}' ({type(exc).__name__}).")
+    try:
+        client.put_bucket_cors(Bucket=bucket, CORSConfiguration={"CORSRules": [{
+            "AllowedOrigins": allowed,
+            "AllowedMethods": ["PUT", "GET", "HEAD"],
+            "AllowedHeaders": ["Content-Type"],
+            "MaxAgeSeconds": 3600,
+        }]})
+    except spaces.StorageErrors as exc:
+        code = getattr(exc, "response", {}).get("Error", {}).get("Code")
+        if code in ("AccessDenied", "403"):
+            print("This (limited) Spaces key may not change Space settings - that is fine and safer.\n"
+                  "Add the upload rule once in DigitalOcean instead:\n"
+                  f"  Spaces Object Storage -> {bucket} -> Settings -> CORS Configurations -> Add\n"
+                  f"  Origin: {allowed[0]}   Allowed methods: PUT, GET, HEAD\n"
+                  "  Allowed header: Content-Type   Access Control Max Age: 3600")
+            return 0
+        raise SystemExit(f"Could not set CORS on '{bucket}' ({code or type(exc).__name__}).")
+    try:
+        acl = client.get_bucket_acl(Bucket=bucket)
+    except spaces.StorageErrors:
+        print(f"Space '{bucket}' ({region}): browser uploads allowed from {', '.join(allowed)}")
+        return 0
     public = any(g.get("Grantee", {}).get("URI") == PUBLIC_GRANTEE for g in acl.get("Grants", []))
     print(f"Space '{bucket}' ({region}): browser uploads allowed from {', '.join(allowed)}")
     if public:
