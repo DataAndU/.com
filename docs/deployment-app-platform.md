@@ -56,3 +56,42 @@ database reachability for monitoring.
 
 App → **Activity** → pick the previous successful deployment → **Rollback**.
 The migration's indexes can stay in place; older code ignores them.
+
+## Environment variables (authoritative, from the code)
+
+| Variable | web | api | Secret | Notes |
+|---|---|---|---|---|
+| `NODE_ENV=production` | ✓ | ✓ | no | fixed in spec |
+| `ALLOWED_ORIGINS` | ✓ | ✓ | no | `https://pontreol.com` (+ app URL); trusted host, CORS/CSRF, Clerk `azp` |
+| `CLERK_PUBLISHABLE_KEY` | ✓ build+run | ✓ | no | `pk_live_…`; `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is derived from it at build (`next.config.mjs`) |
+| `CLERK_SECRET_KEY` | ✓ | ✓ | **yes** | `sk_live_…`; web: session middleware; api: first-login profile sync |
+| `DATABASE_URL` | | ✓ | **yes** | DigitalOcean **direct** connection string (port 25060, `sslmode=require`), not a PgBouncer pool |
+| `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, `DB_POOL_RECYCLE`, `DB_CONNECT_TIMEOUT` | | ✓ | no | fixed defaults in spec |
+| `RAZORPAY_MODE=live` | | ✓ | no | fixed |
+| `RAZORPAY_LIVE_KEY_ID` | | ✓ | no | must start `rzp_live_` |
+| `RAZORPAY_LIVE_KEY_SECRET` | | ✓ | **yes** | |
+| `RAZORPAY_LIVE_WEBHOOK_SECRET` | | ✓ | **yes** | webhook URL `https://pontreol.com/api/billing/webhook`, subscription events |
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | | ✓ | **yes** | entire service-account JSON key (or base64 of it) |
+| `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | | ✓ | no | bucket name |
+| `PRIVATE_OBJECT_DIR` | | ✓ | no | `private` (keep the Replit value if copying old photos) |
+| `RESEND_API_KEY` | | ✓ | **yes** | `re_…`, "Sending access" is enough |
+| `RESEND_FROM` | | ✓ | no | `Pontreol <notifications@pontreol.com>`; domain must be verified in Resend |
+| `NOMINATIM_USER_AGENT`, `LOG_LEVEL`, `SLOW_REQUEST_MS` | | ✓ | no | fixed |
+
+Not needed on App Platform: `CLERK_PROXY_URL`, `NEXT_PUBLIC_CLERK_PROXY_URL`,
+`CLERK_ISSUER_URL`, `CLERK_JWKS_URL` (derived from the key),
+`GOOGLE_APPLICATION_CREDENTIALS` (file path; Droplet only), `REPLIT_*`, and
+`RAZORPAY_TEST_*` (live mode ignores them).
+
+### Database: copy, don't start empty
+
+Production never creates tables at startup, so a brand-new database has no
+schema. Copy the existing (Replit) database into DigitalOcean Managed
+PostgreSQL once. The copy is read-only on the source:
+
+```
+pg_dump "$OLD_DATABASE_URL" --format=custom --no-owner --no-privileges -f pontreol.dump
+pg_restore --no-owner --no-privileges --dbname "$NEW_DATABASE_URL" pontreol.dump
+```
+
+Then run `python python/apply_migrations.py` from the api Console.
