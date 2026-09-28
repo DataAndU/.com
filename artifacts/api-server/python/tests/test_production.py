@@ -165,18 +165,6 @@ def test_liveness_independent_of_database_and_readiness_reports_outage(monkeypat
     assert client.get("/api/readyz").status_code == 503
 
 
-def test_google_jwks_outage_returns_503_not_crash():
-    import auth
-    import jwt as pyjwt
-
-    def unavailable(_token):
-        raise pyjwt.PyJWKClientConnectionError("jwks down")
-    with pytest.raises(HTTPException) as error:
-        auth.verify_id_token("a.b.c", "client", "nonce",
-                             SimpleNamespace(get_signing_key_from_jwt=unavailable))
-    assert error.value.status_code == 503
-
-
 # --- Google Cloud credentials from environment (App Platform) ---------------
 
 def test_gcs_credentials_from_env_json_and_base64(monkeypatch):

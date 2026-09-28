@@ -1,47 +1,52 @@
-"""Native Google sign-in (OpenID Connect authorization-code flow + PKCE) and
-opaque server-side sessions.
+"""Email one-time-code (OTP) sign-in and opaque server-side sessions.
 
 Flow:
-  GET  /api/auth/google/start     -> 302 to Google (state, nonce, PKCE S256)
-  GET  /api/auth/google/callback  -> verify, find/link/create user, new session
-  POST /api/auth/logout           -> revoke session, clear cookie
+  POST /api/auth/otp/request  {email}           -> emails a 6-digit code (generic response)
+  POST /api/auth/otp/verify   {email, code, next} -> new session cookie, {next}
+  POST /api/auth/logout                         -> revoke session, clear cookie
 
-The browser only ever holds random opaque cookies (HttpOnly). Google tokens are
-never sent to or stored in the browser. Roles, admin status and suspension stay
-in PostgreSQL and are checked on every request by deps.current_user.
+Codes come from `secrets`, are stored only as salted scrypt hashes, expire after
+10 minutes, are single use, allow 5 attempts, and are rate limited per email and
+per client IP. Codes never appear in URLs, logs or the notification outbox.
+The account is created or linked only after a successful verification.
+Roles, admin status and suspension stay in PostgreSQL and are checked on every
+request by deps.current_user.
 """
-import base64
 import hashlib
 import logging
 import os
+import re
 import secrets
-import time
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode, urlparse
 
-import httpx
-import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import delete, func, select, update
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+import outbox
 from deps import _same_origin_mutation, get_db
-from models import AuthSession, OAuthLoginAttempt, User
+from models import AuthRateEvent, AuthSession, EmailOtpChallenge, User
 
 router = APIRouter()
 logger = logging.getLogger("pontreol.auth")
 
-GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
-GOOGLE_ISSUERS = ("https://accounts.google.com", "accounts.google.com")
 SESSION_TTL = timedelta(days=30)
-LOGIN_ATTEMPT_TTL = timedelta(minutes=10)
-CALLBACK_PATH = "/api/auth/google/callback"
+OTP_TTL = timedelta(minutes=10)
+OTP_LENGTH = 6
+OTP_MAX_ATTEMPTS = 5
+RESEND_COOLDOWN = timedelta(seconds=60)
+EMAIL_HOURLY_LIMIT = 5        # codes sent to one address per hour
+IP_HOURLY_REQUEST_LIMIT = 20  # codes requested from one client IP per hour
+IP_HOURLY_FAILURE_LIMIT = 30  # wrong codes submitted from one client IP per hour
+RETENTION = timedelta(days=1)
 DEFAULT_NEXT = "/home"
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
 
 
-# --- configuration ---------------------------------------------------------
+# --- helpers -----------------------------------------------------------------
 
 def production():
     return os.getenv("NODE_ENV") == "production"
@@ -50,31 +55,6 @@ def production():
 def session_cookie_name():
     # __Host- prefix: Secure, Path=/, no Domain -> cannot be set by subdomains.
     return "__Host-pontreol_session" if production() else "pontreol_session"
-
-
-def login_cookie_name():
-    return "__Host-pontreol_login" if production() else "pontreol_login"
-
-
-def google_client():
-    client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
-    if not client_id or not client_secret:
-        raise HTTPException(503, "Google sign-in is not configured")
-    return client_id, client_secret
-
-
-def redirect_uri():
-    """Exact callback registered in Google Cloud. Never derived from the
-    request Host header."""
-    explicit = os.getenv("GOOGLE_REDIRECT_URI", "").strip()
-    if explicit:
-        return explicit
-    for origin in os.getenv("ALLOWED_ORIGINS", "").split(","):
-        parsed = urlparse(origin.strip())
-        if parsed.scheme in {"http", "https"} and parsed.hostname:
-            return f"{parsed.scheme}://{parsed.netloc}{CALLBACK_PATH}"
-    raise HTTPException(503, "Google sign-in redirect URI is not configured")
 
 
 def token_hash(token):
@@ -89,67 +69,37 @@ def aware(value):
     return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
 
 
-# --- Google OIDC discovery / JWKS -------------------------------------------
-
-_discovery = {"at": 0.0, "doc": None}
-_jwks_clients = {}
-
-
-def discovery():
-    if _discovery["doc"] and time.monotonic() - _discovery["at"] < 3600:
-        return _discovery["doc"]
-    try:
-        response = httpx.get(GOOGLE_DISCOVERY_URL, timeout=8)
-        response.raise_for_status()
-        doc = response.json()
-        for key in ("authorization_endpoint", "token_endpoint", "jwks_uri"):
-            if not str(doc.get(key, "")).startswith("https://"):
-                raise ValueError(key)
-    except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("Google OIDC discovery unavailable: %s", type(exc).__name__)
-        raise HTTPException(503, "Google sign-in is temporarily unavailable") from exc
-    _discovery.update(at=time.monotonic(), doc=doc)
-    return doc
+def normalize_email(value):
+    """Login identity: trimmed, lower-cased address (no provider-specific rewriting)."""
+    email = (value or "").strip().lower()
+    if len(email) > 254 or not EMAIL_RE.match(email):
+        raise HTTPException(422, "invalid_email")
+    return email
 
 
-def jwks_client(uri):
-    if uri not in _jwks_clients:
-        _jwks_clients[uri] = jwt.PyJWKClient(uri, cache_keys=True, lifespan=3600)
-    return _jwks_clients[uri]
+def client_ip_hash(request: Request):
+    """First X-Forwarded-For hop (set by App Platform/nginx), else the socket peer.
+    Stored hashed only."""
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    ip = forwarded or (request.client.host if request.client else "unknown")
+    return hashlib.sha256(("pontreol-ip:" + ip).encode()).hexdigest()
 
 
-class IdentityError(Exception):
-    """Rejected Google identity (never shown verbatim to users)."""
+def hash_code(code, salt):
+    digest = hashlib.scrypt(code.encode(), salt=bytes.fromhex(salt), n=2 ** 14, r=8, p=1, dklen=32)
+    return digest.hex()
 
 
-def verify_id_token(id_token, client_id, nonce, jwks):
-    """Validate signature, issuer, audience, expiry, nonce and verified email."""
-    try:
-        key = jwks.get_signing_key_from_jwt(id_token)
-        claims = jwt.decode(id_token, key.key, algorithms=["RS256"], audience=client_id,
-                            issuer=list(GOOGLE_ISSUERS), leeway=30,
-                            options={"require": ["exp", "iat", "iss", "aud", "sub"]})
-    except jwt.PyJWKClientConnectionError as exc:
-        raise HTTPException(503, "Google sign-in is temporarily unavailable") from exc
-    except jwt.PyJWTError as exc:
-        raise IdentityError(f"invalid id_token: {type(exc).__name__}") from exc
-    if not isinstance(claims.get("nonce"), str) or not secrets.compare_digest(claims["nonce"], nonce):
-        raise IdentityError("nonce mismatch")
-    if claims.get("azp") and claims["azp"] != client_id:
-        raise IdentityError("authorized party mismatch")
-    if claims.get("email_verified") is not True or not claims.get("email"):
-        raise IdentityError("email not verified")
-    return claims
+def new_code():
+    return f"{secrets.randbelow(10 ** OTP_LENGTH):0{OTP_LENGTH}d}"
 
-
-# --- helpers ----------------------------------------------------------------
 
 def safe_next(value):
     """Only same-site relative paths: blocks open redirects (//evil, /\\evil, schemes)."""
     if (not value or not value.startswith("/") or value.startswith("//")
             or "\\" in value or any(ord(c) < 32 for c in value) or len(value) > 512):
         return DEFAULT_NEXT
-    if value.startswith("/api/") or value.startswith("/sign-in"):
+    if value.startswith("/api/") or value.startswith("/sign-in") or value.startswith("/sign-up"):
         return DEFAULT_NEXT
     return value
 
@@ -161,39 +111,6 @@ def set_cookie(response, name, value, max_age, path="/"):
 
 def clear_cookie(response, name, path="/"):
     response.delete_cookie(name, path=path, httponly=True, secure=production(), samesite="lax")
-
-
-def sign_in_error(code):
-    response = RedirectResponse(f"/sign-in?error={code}", status_code=302)
-    clear_cookie(response, login_cookie_name())
-    return response
-
-
-def find_or_link_user(db, claims):
-    """google_sub first; else link a legacy (Clerk-era) account by verified
-    email, only when exactly one unlinked account matches; else create."""
-    sub = claims["sub"]
-    email = claims["email"].strip()
-    user = db.scalar(select(User).where(User.google_sub == sub).with_for_update())
-    if user:
-        return user, "existing"
-    matches = list(db.scalars(select(User).where(
-        func.lower(User.email) == email.lower()).with_for_update()))
-    if len(matches) > 1:
-        raise IdentityError("multiple accounts share this email")
-    if matches:
-        match = matches[0]
-        if match.google_sub and match.google_sub != sub:
-            # The email now belongs to a different Google account: never merge.
-            raise IdentityError("email linked to a different Google account")
-        match.google_sub = sub
-        return match, "linked"
-    user = User(google_sub=sub, email=email,
-                display_name=(claims.get("name") or email.split("@")[0])[:120],
-                avatar_url=claims.get("picture"))
-    db.add(user)
-    db.flush()
-    return user, "created"
 
 
 def create_session(db, user_id):
@@ -211,97 +128,162 @@ def revoke_presented_session(db, request):
             AuthSession.revoked_at.is_(None)).values(revoked_at=utcnow()))
 
 
-# --- routes -----------------------------------------------------------------
-
-@router.get("/auth/google/start")
-def google_start(request: Request, next: str = DEFAULT_NEXT, db: Session = Depends(get_db)):
-    client_id, _ = google_client()
-    endpoint = discovery()["authorization_endpoint"]
-    browser = secrets.token_urlsafe(32)
-    state = secrets.token_urlsafe(32)
-    nonce = secrets.token_urlsafe(32)
-    verifier = secrets.token_urlsafe(64)
-    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
-    db.execute(delete(OAuthLoginAttempt).where(
-        OAuthLoginAttempt.created_at < utcnow() - LOGIN_ATTEMPT_TTL))
-    db.add(OAuthLoginAttempt(browser_hash=token_hash(browser), state=state, nonce=nonce,
-                             code_verifier=verifier, next_path=safe_next(next)))
-    params = {"response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri(),
-              "scope": "openid email profile", "state": state, "nonce": nonce,
-              "code_challenge": challenge, "code_challenge_method": "S256",
-              "prompt": "select_account"}
-    response = RedirectResponse(f"{endpoint}?{urlencode(params)}", status_code=302)
-    response.headers["Cache-Control"] = "no-store"
-    set_cookie(response, login_cookie_name(), browser, int(LOGIN_ATTEMPT_TTL.total_seconds()))
-    return response
+def too_many(retry_after_seconds):
+    return HTTPException(429, "rate_limited",
+                         headers={"Retry-After": str(max(1, int(retry_after_seconds)))})
 
 
-def exchange_code(code, verifier, client_id, client_secret):
+def otp_email(code):
+    minutes = int(OTP_TTL.total_seconds() // 60)
+    subject = f"Your Pontreol verification code is {code}"
+    text = (f"Your Pontreol verification code is {code}\n\n"
+            f"It expires in {minutes} minutes and can be used once.\n\n"
+            "If you didn't try to sign in to Pontreol, you can safely ignore this email; "
+            "nobody can sign in without this code.\n\n— Pontreol")
+    return subject, text
+
+
+# --- routes -------------------------------------------------------------------
+
+class OtpRequestBody(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+
+
+class OtpVerifyBody(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    code: str = Field(min_length=1, max_length=12)
+    next: str | None = Field(None, max_length=512)
+
+
+@router.post("/auth/otp/request")
+def request_code(body: OtpRequestBody, request: Request, db: Session = Depends(get_db)):
+    """Always the same response whether or not an account exists."""
+    _same_origin_mutation(request)
+    email = normalize_email(body.email)
+    sender = os.getenv("RESEND_FROM", "").strip()
+    if not sender or not os.getenv("RESEND_API_KEY", "").strip():
+        raise HTTPException(503, "email_unavailable")
+    now = utcnow()
+    ip = client_ip_hash(request)
+    db.execute(delete(EmailOtpChallenge).where(EmailOtpChallenge.created_at < now - RETENTION))
+    db.execute(delete(AuthRateEvent).where(AuthRateEvent.created_at < now - RETENTION))
+
+    hour_ago = now - timedelta(hours=1)
+    latest = db.scalar(select(func.max(EmailOtpChallenge.created_at)).where(
+        EmailOtpChallenge.email == email))
+    if latest is not None and aware(latest) > now - RESEND_COOLDOWN:
+        raise too_many((aware(latest) + RESEND_COOLDOWN - now).total_seconds())
+    sent_to_email = db.scalar(select(func.count()).select_from(EmailOtpChallenge).where(
+        EmailOtpChallenge.email == email, EmailOtpChallenge.created_at > hour_ago))
+    sent_from_ip = db.scalar(select(func.count()).select_from(EmailOtpChallenge).where(
+        EmailOtpChallenge.ip_hash == ip, EmailOtpChallenge.created_at > hour_ago))
+    if sent_to_email >= EMAIL_HOURLY_LIMIT or sent_from_ip >= IP_HOURLY_REQUEST_LIMIT:
+        raise too_many(3600)
+
+    # Only the newest code for an address is ever valid.
+    db.execute(update(EmailOtpChallenge).where(
+        EmailOtpChallenge.email == email, EmailOtpChallenge.consumed_at.is_(None)).values(
+        consumed_at=now))
+    code = new_code()
+    salt = secrets.token_hex(16)
+    challenge = EmailOtpChallenge(email=email, code_salt=salt, code_hash=hash_code(code, salt),
+                                  ip_hash=ip, created_at=now, expires_at=now + OTP_TTL)
+    db.add(challenge)
+    db.flush()
+    subject, text = otp_email(code)
     try:
-        response = httpx.post(discovery()["token_endpoint"], timeout=10, data={
-            "grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri(),
-            "client_id": client_id, "client_secret": client_secret, "code_verifier": verifier})
-    except httpx.HTTPError as exc:
-        raise HTTPException(503, "Google sign-in is temporarily unavailable") from exc
-    if response.status_code != 200:
-        raise IdentityError(f"token exchange rejected ({response.status_code})")
-    id_token = response.json().get("id_token")
-    if not id_token:
-        raise IdentityError("no id_token")
-    return id_token
-
-
-@router.get("/auth/google/callback")
-def google_callback(request: Request, code: str | None = None, state: str | None = None,
-                    error: str | None = None, db: Session = Depends(get_db)):
-    browser = request.cookies.get(login_cookie_name())
-    if not browser:
-        return sign_in_error("expired")
-    # Single use: the attempt is consumed whatever happens next (replay protection).
-    attempt = db.scalar(select(OAuthLoginAttempt).where(
-        OAuthLoginAttempt.browser_hash == token_hash(browser)).with_for_update())
-    if attempt is not None:
-        db.delete(attempt)
-    # Commit consumption now so a later failure/rollback cannot resurrect it.
-    db.commit()
-    if attempt is None or aware(attempt.created_at) < utcnow() - LOGIN_ATTEMPT_TTL:
-        db.commit()
-        return sign_in_error("expired")
-    if error:
-        db.commit()
-        return sign_in_error("cancelled")
-    if not code or not state or not secrets.compare_digest(state, attempt.state):
-        db.commit()
-        logger.warning("Google sign-in rejected: state mismatch")
-        return sign_in_error("failed")
-    client_id, client_secret = google_client()
-    try:
-        id_token = exchange_code(code, attempt.code_verifier, client_id, client_secret)
-        claims = verify_id_token(id_token, client_id, attempt.nonce,
-                                 jwks_client(discovery()["jwks_uri"]))
-        try:
-            user, outcome = find_or_link_user(db, claims)
-            db.flush()
-        except IntegrityError:
-            # Concurrent first sign-in for the same Google account.
-            db.rollback()
-            user, outcome = find_or_link_user(db, claims)
-    except IdentityError as exc:
+        # Sent directly (never via the outbox table, which would store the code).
+        outbox.send_via_resend({"from": sender, "to": email, "subject": subject, "text": text,
+                                "idempotencyKey": f"otp-{challenge.id}"})
+    except outbox.EmailError as exc:
         db.rollback()
-        logger.warning("Google sign-in rejected: %s", exc)
-        return sign_in_error("failed")
+        logger.warning("Sign-in code email failed: %s", exc)  # EmailError text is secret-free
+        raise HTTPException(503, "email_send_failed") from exc
+    except Exception as exc:  # never leak transport details
+        db.rollback()
+        logger.warning("Sign-in code email failed: %s", type(exc).__name__)
+        raise HTTPException(503, "email_send_failed") from exc
+    return {"sent": True, "expiresIn": int(OTP_TTL.total_seconds()),
+            "resendAfter": int(RESEND_COOLDOWN.total_seconds())}
+
+
+def find_or_create_user(db, email):
+    """Existing account by normalized email, else a new one. Never merges."""
+    if db.get_bind().dialect.name == "postgresql":
+        # Serialize first sign-ins per address (email has no unique constraint
+        # because legacy duplicates may exist); released at transaction end.
+        db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+                   {"k": "pontreol-signin:" + email})
+    matches = list(db.scalars(select(User).where(func.lower(User.email) == email).with_for_update()))
+    if len(matches) > 1:
+        logger.warning("Sign-in refused: %d accounts share one email; needs operator review",
+                       len(matches))
+        raise HTTPException(409, "account_conflict")
+    if matches:
+        return matches[0], "existing"
+    user = User(email=email, display_name=email.split("@")[0][:120])
+    db.add(user)
+    db.flush()
+    return user, "created"
+
+
+def record_failure(db, ip):
+    db.add(AuthRateEvent(ip_hash=ip, kind="otp_failed"))
+
+
+@router.post("/auth/otp/verify")
+def verify_code(body: OtpVerifyBody, request: Request, db: Session = Depends(get_db)):
+    _same_origin_mutation(request)
+    email = normalize_email(body.email)
+    ip = client_ip_hash(request)
+    now = utcnow()
+    failures = db.scalar(select(func.count()).select_from(AuthRateEvent).where(
+        AuthRateEvent.ip_hash == ip, AuthRateEvent.created_at > now - timedelta(hours=1)))
+    if failures >= IP_HOURLY_FAILURE_LIMIT:
+        raise too_many(3600)
+
+    challenge = db.scalar(select(EmailOtpChallenge).where(
+        EmailOtpChallenge.email == email, EmailOtpChallenge.consumed_at.is_(None)).order_by(
+        EmailOtpChallenge.created_at.desc()).limit(1).with_for_update())
+    if challenge is None:
+        record_failure(db, ip)
+        db.commit()
+        raise HTTPException(400, "invalid_code")
+    if aware(challenge.expires_at) <= now:
+        challenge.consumed_at = now
+        db.commit()
+        raise HTTPException(400, "expired_code")
+
+    code = re.sub(r"\s", "", body.code)
+    matches = (len(code) == OTP_LENGTH and code.isdigit()
+               and secrets.compare_digest(hash_code(code, challenge.code_salt), challenge.code_hash))
+    if not matches:
+        challenge.attempts += 1
+        if challenge.attempts >= OTP_MAX_ATTEMPTS:
+            challenge.consumed_at = now
+        record_failure(db, ip)
+        db.commit()
+        raise HTTPException(400, "too_many_attempts" if challenge.consumed_at else "invalid_code")
+
+    # Single use: consumed before anything else can happen (replay protection).
+    challenge.consumed_at = now
+    db.commit()
+    try:
+        user, outcome = find_or_create_user(db, email)
+    except IntegrityError:
+        db.rollback()  # concurrent first sign-in for the same address
+        user, outcome = find_or_create_user(db, email)
     if user.suspended:
         db.commit()
-        return sign_in_error("suspended")
-    # Session fixation defence: always a brand-new token; revoke any presented one.
+        raise HTTPException(403, "suspended")
+    # Session rotation / fixation defence: always a brand-new token.
     revoke_presented_session(db, request)
     token = create_session(db, user.id)
     db.commit()
-    logger.info("Google sign-in ok outcome=%s", outcome)
-    destination = attempt.next_path if user.role else "/onboarding"
-    response = RedirectResponse(safe_next(destination), status_code=302)
+    logger.info("Email sign-in ok outcome=%s", outcome)
+    destination = safe_next(body.next) if user.role else "/onboarding"
+    response = JSONResponse({"next": destination})
     response.headers["Cache-Control"] = "no-store"
-    clear_cookie(response, login_cookie_name())
     set_cookie(response, session_cookie_name(), token, int(SESSION_TTL.total_seconds()))
     return response
 

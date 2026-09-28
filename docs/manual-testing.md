@@ -5,7 +5,7 @@ Use two separate browser profiles: one Buyer and one Provider. An administrator 
 ## 1. Sign-in and permanent roles
 
 1. Open the app signed out. Marketplace pages must ask you to sign in.
-2. Sign in with Google and select Buyer or Provider on first use.
+2. Sign in with your email and the 6-digit code, then select Buyer or Provider on first use.
 3. Reload and sign out/in: the same role must remain selected.
 4. A buyer must not be able to manage another person's listings. Non-administrators must not see admin navigation or access admin data.
 
@@ -56,12 +56,12 @@ An administrator configures plans, discounts and the free monthly contact limit.
 3. Deny (or block in site settings): no summary request; the page explains how to search an address; searching loads listings for that place.
 4. Navigate Map → Discover → Messages → Map: `/api/me` is requested once per 5 minutes at most (not on every navigation), and returning to Map reuses the cached result.
 5. Sign out, then sign in as a different account: no data from the first account is shown (the query cache is cleared on user change).
-6. Sign-in page shows "Continue with Google" on Android Chrome and returns to Pontreol after Google.
+6. Sign-in page shows the email field on Android Chrome; the emailed code can be entered (keyboard shows digits; Chrome may offer the code) and signs you in.
 
-## Authentication and account checks (real Google sign-in, desktop + Android Chrome)
+## Authentication and account checks (real email codes via Resend, desktop + Android Chrome)
 
-1. Signed out, open `/home`: you are redirected to `/sign-in?next=/home`, and "Continue with Google" is shown.
-2. Sign in with Google: the callback returns you to the app, and the Map/Discover links work straight away.
+1. Signed out, open `/home`: you are redirected to `/sign-in?next=/home`, and the email field is shown.
+2. Enter your email → Continue → enter the 6-digit code from the email → Verify: you land on the page you wanted, and the Map/Discover links work straight away.
 3. Refresh: you are still signed in. Leave the tab for more than 60 s and come back: API calls still succeed (session refresh).
 4. Sign out: `/home` redirects to `/sign-in` again.
 5. Sign in as a **different** account: the name, role links and admin link belong to the new account only (no data from the previous `/api/me`).
@@ -78,4 +78,4 @@ An administrator configures plans, discounts and the free monthly contact limit.
 
 ## Automated checks
 
-The backend tests isolate marketplace records in a temporary PostgreSQL schema and use test-only identity overrides. They do not bypass production authentication or prove a real Google OAuth or Razorpay sandbox checkout succeeded. Test payments are isolated from live paid access, payment history, webhook receipts, and live revenue.
+The backend tests isolate marketplace records in a temporary PostgreSQL schema and use test-only identity overrides. They do not bypass production authentication or prove that a real Resend sign-in email was delivered or a Razorpay sandbox checkout succeeded. Test payments are isolated from live paid access, payment history, webhook receipts, and live revenue.

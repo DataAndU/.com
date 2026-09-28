@@ -23,7 +23,8 @@ class User(Base):
     # Legacy Clerk identity: retained (nullable) for rollback/audit only.
     # Nothing authenticates with it any more (migration 0002).
     clerk_user_id = Column(String(255), nullable=True, unique=True, index=True)
-    # Google OpenID Connect subject: the stable login identity.
+    # Legacy Google sign-in subject: retained for rollback/history only.
+    # Sign-in identity is the normalized email (email OTP).
     google_sub = Column(String(255), nullable=True, unique=True, index=True)
     email = Column(String(320), nullable=False)
     display_name = Column(String(120), nullable=False)
@@ -53,15 +54,27 @@ class AuthSession(Base):
     revoked_at = Column(DateTime(timezone=True))
 
 
-class OAuthLoginAttempt(Base):
-    """One pending Google sign-in: binds state/nonce/PKCE verifier to the
-    browser's login cookie. Single use and short lived (replay protection)."""
-    __tablename__ = "oauth_login_attempts"
-    browser_hash = Column(String(64), primary_key=True)
-    state = Column(String(128), nullable=False)
-    nonce = Column(String(128), nullable=False)
-    code_verifier = Column(String(128), nullable=False)
-    next_path = Column(String(512), nullable=False, default="/home")
+class EmailOtpChallenge(Base):
+    """One emailed sign-in code. Only a salted scrypt hash of the code is
+    stored; single use, short lived, attempt-limited (migration 0003)."""
+    __tablename__ = "email_otp_challenges"
+    id = Column(String(36), primary_key=True, default=uid)
+    email = Column(String(320), nullable=False, index=True)  # normalized
+    code_salt = Column(String(32), nullable=False)
+    code_hash = Column(String(128), nullable=False)
+    attempts = Column(Integer, nullable=False, default=0)
+    ip_hash = Column(String(64), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True))
+
+
+class AuthRateEvent(Base):
+    """Failed verifications per client IP (hashed), for rate limiting."""
+    __tablename__ = "auth_rate_events"
+    id = Column(String(36), primary_key=True, default=uid)
+    ip_hash = Column(String(64), nullable=False, index=True)
+    kind = Column(String(24), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=now, index=True)
 
 

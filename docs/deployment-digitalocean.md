@@ -41,8 +41,8 @@ sudo chown root:pontreol /etc/pontreol/*  && sudo chmod 640 /etc/pontreol/*
 
 External configuration:
 
-- **Google sign-in:** OAuth Web client with redirect URI
-  `https://pontreol.com/api/auth/google/callback` (see docs/authentication.md).
+- **Sign-in:** email one-time codes sent through Resend; verify the `pontreol.com`
+  domain in Resend and set `RESEND_API_KEY` (see docs/authentication.md).
 - **Razorpay:** set the webhook to `https://pontreol.com/api/billing/webhook`.
 - **GCS:** create the bucket, grant the service account `roles/storage.objectAdmin`,
   and allow browser uploads with
@@ -118,6 +118,6 @@ them. To remove them anyway:
 | Dependency down | Effect |
 |---|---|
 | PostgreSQL | API starts; `/api/healthz` 200, `/api/readyz` 503; data endpoints error; pool reconnects automatically (pre-ping) |
-| Google | Existing sessions keep working (they are Pontreol's own); only new sign-ins fail with a friendly error |
+| Resend (sign-in email) | Existing sessions keep working; new sign-ins show "couldn't send the email" until Resend recovers |
 | GCS | Uploads and `/api/media/*` return 503; photos show a placeholder; everything else works |
 | Resend | Emails stay queued with retry (≤10 attempts); nothing else affected |

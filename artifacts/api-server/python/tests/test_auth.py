@@ -1,23 +1,17 @@
-"""Native Google OIDC sign-in and session security tests.
+"""Email OTP sign-in and session security tests.
 
-Google is simulated with a locally generated RSA key: discovery, the token
-endpoint and JWKS are replaced, everything else (state, nonce, PKCE, cookie
-binding, ID-token verification, account linking, sessions, CSRF) is real.
+Resend is replaced by a recorder (the only thing simulated); challenge storage,
+hashing, expiry, attempt limits, rate limits, account lookup, sessions and CSRF
+are the real code paths.
 """
-import base64
-import hashlib
+import logging
 import os
+import re
 import secrets
 import sys
-import time
 from datetime import timedelta
-from types import SimpleNamespace
-from urllib.parse import parse_qs, urlparse
 
-import httpx
-import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import sessionmaker
@@ -28,12 +22,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import auth
 import billing_models  # noqa: F401
 import deps
+import outbox
 from app import app
-from models import AuthSession, Base, OAuthLoginAttempt, User
+from models import AuthRateEvent, AuthSession, Base, EmailOtpChallenge, NotificationOutbox, User
 
-CLIENT_ID = "pontreol-test.apps.googleusercontent.com"
-GOOGLE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 ORIGIN = "https://pontreol.com"
+SAME_ORIGIN = {"origin": ORIGIN}
 
 
 @pytest.fixture
@@ -45,51 +39,34 @@ def maker():
     engine.dispose()
 
 
-class Google:
-    """Programmable fake of Google's token endpoint."""
-
+class Mailbox:
     def __init__(self):
-        self.claims = {}
-        self.key = GOOGLE_KEY
-        self.status = 200
-        self.last_form = None
+        self.sent = []
+        self.fail = None
 
-    def id_token(self, nonce):
-        now = int(time.time())
-        claims = {"iss": "https://accounts.google.com", "aud": CLIENT_ID, "azp": CLIENT_ID,
-                  "sub": "google-sub-1", "email": "asha@example.com", "email_verified": True,
-                  "name": "Asha", "picture": "https://lh3.googleusercontent.com/a/x",
-                  "iat": now, "exp": now + 300, "nonce": nonce}
-        claims.update(self.claims)
-        return jwt.encode({k: v for k, v in claims.items() if v is not ...}, self.key,
-                          algorithm="RS256", headers={"kid": "k1"})
+    def __call__(self, message):
+        if self.fail:
+            raise self.fail
+        self.sent.append(message)
+        return "email_1"
+
+    def last_code(self, email=None):
+        messages = [m for m in self.sent if email is None or m["to"] == email]
+        return re.search(r"\b(\d{6})\b", messages[-1]["text"]).group(1)
 
 
 @pytest.fixture
-def google(monkeypatch):
-    fake = Google()
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", CLIENT_ID)
-    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "test-client-secret")
+def mailbox(monkeypatch):
+    box = Mailbox()
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    monkeypatch.setenv("RESEND_FROM", "Pontreol <notifications@pontreol.com>")
     monkeypatch.setenv("ALLOWED_ORIGINS", ORIGIN)
-    monkeypatch.delenv("GOOGLE_REDIRECT_URI", raising=False)
-    monkeypatch.setattr(auth, "discovery", lambda: {
-        "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
-        "token_endpoint": "https://oauth2.googleapis.com/token",
-        "jwks_uri": "https://www.googleapis.com/oauth2/v3/certs"})
-    monkeypatch.setattr(auth, "jwks_client", lambda uri: SimpleNamespace(
-        get_signing_key_from_jwt=lambda token: SimpleNamespace(key=GOOGLE_KEY.public_key())))
-
-    def token_endpoint(url, data=None, **kwargs):
-        fake.last_form = data
-        if fake.status != 200:
-            return httpx.Response(fake.status, json={"error": "invalid_grant"})
-        return httpx.Response(200, json={"id_token": fake.id_token(fake.nonce)})
-    monkeypatch.setattr(auth.httpx, "post", token_endpoint)
-    return fake
+    monkeypatch.setattr(outbox, "send_via_resend", box)
+    return box
 
 
 @pytest.fixture
-def client(maker, google):
+def client(maker, mailbox):
     def test_db():
         session = maker()
         try:
@@ -101,336 +78,420 @@ def client(maker, google):
         finally:
             session.close()
     app.dependency_overrides[deps.get_db] = test_db
-    yield TestClient(app, base_url=ORIGIN, follow_redirects=False)
+    yield new_client()
     app.dependency_overrides.pop(deps.get_db, None)
 
 
-def start(client, google, next_path="/discover"):
-    response = client.get(f"/api/auth/google/start?next={next_path}")
-    assert response.status_code == 302
-    query = parse_qs(urlparse(response.headers["location"]).query)
-    google.nonce = query["nonce"][0]
-    return response, query
+def new_client(ip="203.0.113.10"):
+    return TestClient(app, base_url=ORIGIN, headers={"x-forwarded-for": ip})
 
 
-def sign_in(client, google, next_path="/discover", **claims):
-    google.claims = claims
-    _, query = start(client, google, next_path)
-    return client.get(f"/api/auth/google/callback?code=auth-code&state={query['state'][0]}")
+def request_code(client, email="asha@example.com"):
+    return client.post("/api/auth/otp/request", json={"email": email}, headers=SAME_ORIGIN)
+
+
+def verify(client, code, email="asha@example.com", next_path="/discover"):
+    return client.post("/api/auth/otp/verify", json={"email": email, "code": code, "next": next_path},
+                       headers=SAME_ORIGIN)
+
+
+def sign_in(client, mailbox, email="asha@example.com", next_path="/discover"):
+    assert request_code(client, email).status_code == 200
+    return verify(client, mailbox.last_code(email), email, next_path)
 
 
 def me(client):
     return client.get("/api/me")
 
 
-# --- authorization request ----------------------------------------------------
-
-def test_start_uses_code_flow_with_state_nonce_pkce(client, google):
-    response, query = start(client, google)
-    assert response.headers["location"].startswith("https://accounts.google.com/o/oauth2/v2/auth?")
-    assert query["response_type"] == ["code"] and query["client_id"] == [CLIENT_ID]
-    assert query["redirect_uri"] == [f"{ORIGIN}/api/auth/google/callback"]
-    assert query["scope"] == ["openid email profile"]
-    assert query["code_challenge_method"] == ["S256"]
-    assert len(query["state"][0]) >= 32 and len(query["nonce"][0]) >= 32
-    login_cookie = response.headers["set-cookie"]
-    assert "httponly" in login_cookie.lower() and "samesite=lax" in login_cookie.lower()
-
-
-def test_pkce_verifier_is_sent_and_matches_challenge(client, google):
-    _, query = start(client, google)
-    client.get(f"/api/auth/google/callback?code=c&state={query['state'][0]}")
-    verifier = google.last_form["code_verifier"]
-    expected = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
-    assert query["code_challenge"] == [expected]
-    assert google.last_form["redirect_uri"] == f"{ORIGIN}/api/auth/google/callback"
-
-
-def test_not_configured_returns_503(client, monkeypatch):
-    monkeypatch.delenv("GOOGLE_CLIENT_SECRET")
-    assert client.get("/api/auth/google/start").status_code == 503
-
-
-# --- successful identity, sessions --------------------------------------------
-
-def test_successful_sign_in_creates_user_and_session(client, google, maker):
-    response = sign_in(client, google)
-    assert response.status_code == 302
-    assert response.headers["location"] == "/onboarding"  # new account has no role yet
-    body = me(client)
-    assert body.status_code == 200
-    assert body.json()["email"] == "asha@example.com" and body.json()["role"] is None
-    assert "clerkUserId" not in body.json()
+def age_challenges(maker, **delta):
     with maker() as db:
-        user = db.scalar(select(User))
-        assert user.google_sub == "google-sub-1" and user.clerk_user_id is None
-        stored = db.scalar(select(AuthSession))
-        cookie = client.cookies.get(auth.session_cookie_name())
-        assert stored.token_hash == auth.token_hash(cookie) and stored.token_hash != cookie
-        assert db.scalar(select(OAuthLoginAttempt)) is None  # consumed
-
-
-def test_session_persists_and_role_user_goes_to_next(client, google, maker):
-    sign_in(client, google)
-    with maker() as db:
-        db.execute(update(User).values(role="buyer"))
+        for challenge in db.scalars(select(EmailOtpChallenge)):
+            challenge.created_at = auth.aware(challenge.created_at) - timedelta(**delta)
+            challenge.expires_at = auth.aware(challenge.expires_at) - timedelta(**delta)
         db.commit()
-    assert me(client).json()["role"] == "buyer"
-    assert me(client).status_code == 200  # persists across requests
-    second = sign_in(client, google, next_path="/discover")
-    assert second.headers["location"] == "/discover"
+
+
+def existing_user(db, user_id, email, role="provider", **extra):
+    user = User(id=user_id, clerk_user_id=f"user_{user_id}", google_sub=f"g-{user_id}",
+                email=email, display_name=user_id, role=role, **extra)
+    db.add(user)
+    return user
+
+
+# --- OTP request -----------------------------------------------------------------
+
+def test_request_sends_code_and_stores_only_a_hash(client, mailbox, maker):
+    response = request_code(client)
+    assert response.status_code == 200
+    assert response.json() == {"sent": True, "expiresIn": 600, "resendAfter": 60}
+    message = mailbox.sent[-1]
+    code = mailbox.last_code()
+    assert message["to"] == "asha@example.com"
+    assert message["from"] == "Pontreol <notifications@pontreol.com>"
+    assert "Your Pontreol verification code is" in message["subject"]
+    assert "expires in 10 minutes" in message["text"] and "ignore" in message["text"]
     with maker() as db:
-        assert db.query(User).count() == 1  # no duplicate on repeat sign-in
+        challenge = db.scalar(select(EmailOtpChallenge))
+        assert challenge.code_hash != code and code not in challenge.code_hash
+        assert challenge.code_hash == auth.hash_code(code, challenge.code_salt)
+        assert db.query(User).count() == 0            # no account merely from requesting
+        assert db.query(NotificationOutbox).count() == 0  # code never queued in plaintext
 
 
-def test_production_cookie_flags(client, google, monkeypatch):
+def test_request_response_does_not_reveal_account_existence(client, mailbox, maker):
+    with maker() as db:
+        existing_user(db, "old", "asha@example.com")
+        db.commit()
+    known = request_code(client, "asha@example.com")
+    unknown = request_code(client, "nobody@example.com")
+    assert known.status_code == unknown.status_code == 200
+    assert known.json() == unknown.json()
+
+
+def test_codes_are_random_six_digits(client, mailbox, maker):
+    codes = set()
+    for i in range(5):
+        request_code(client, f"u{i}@example.com")
+        code = mailbox.last_code(f"u{i}@example.com")
+        assert len(code) == 6 and code.isdigit()
+        codes.add(code)
+    assert len(codes) > 1
+
+
+@pytest.mark.parametrize("bad", ["not-an-email", "a@b", "x" * 300 + "@example.com", "a b@example.com"])
+def test_invalid_email_rejected(client, bad):
+    assert request_code(client, bad).status_code == 422
+
+
+def test_email_is_normalized(client, mailbox):
+    request_code(client, "  Asha@Example.COM ")
+    assert mailbox.sent[-1]["to"] == "asha@example.com"
+    assert verify(client, mailbox.last_code(), "ASHA@example.com").status_code == 200
+    assert me(client).json()["email"] == "asha@example.com"
+
+
+def test_resend_cooldown(client, mailbox, maker):
+    assert request_code(client).status_code == 200
+    again = request_code(client)
+    assert again.status_code == 429 and again.json()["detail"] == "rate_limited"
+    assert 1 <= int(again.headers["retry-after"]) <= 60
+    assert len(mailbox.sent) == 1
+    age_challenges(maker, seconds=61)
+    assert request_code(client).status_code == 200
+
+
+def test_new_code_invalidates_previous_one(client, mailbox, maker):
+    request_code(client)
+    first = mailbox.last_code()
+    age_challenges(maker, seconds=61)
+    request_code(client)
+    second = mailbox.last_code()
+    if first != second:
+        assert verify(client, first).status_code == 400
+    assert verify(client, second).status_code == 200
+
+
+def test_per_email_hourly_limit(client, mailbox, maker):
+    for _ in range(auth.EMAIL_HOURLY_LIMIT):
+        assert request_code(client).status_code == 200
+        age_challenges(maker, seconds=61)
+    assert request_code(client).status_code == 429
+
+
+def test_per_ip_request_limit(client, mailbox, maker):
+    for i in range(auth.IP_HOURLY_REQUEST_LIMIT):
+        assert request_code(client, f"user{i}@example.com").status_code == 200
+    assert request_code(client, "one-more@example.com").status_code == 429
+    other_ip = new_client("198.51.100.7")
+    assert request_code(other_ip, "one-more@example.com").status_code == 200
+
+
+def test_resend_failure_is_graceful(client, mailbox, maker):
+    mailbox.fail = outbox.EmailError("Email provider rejected the notification (HTTP 500)")
+    response = request_code(client)
+    assert response.status_code == 503 and response.json()["detail"] == "email_send_failed"
+    with maker() as db:
+        assert db.query(EmailOtpChallenge).count() == 0  # nothing usable left behind
+    mailbox.fail = None
+    assert request_code(client).status_code == 200  # failure did not start a cooldown
+
+
+def test_unexpected_transport_error_is_graceful(client, mailbox):
+    mailbox.fail = RuntimeError("socket details that must not leak")
+    response = request_code(client)
+    assert response.status_code == 503 and "socket" not in response.text
+
+
+def test_email_not_configured(client, monkeypatch):
+    monkeypatch.delenv("RESEND_API_KEY")
+    assert request_code(client).json()["detail"] == "email_unavailable"
+
+
+# --- verification ---------------------------------------------------------------
+
+def test_new_user_created_only_after_verification(client, mailbox, maker):
+    request_code(client)
+    with maker() as db:
+        assert db.query(User).count() == 0
+    response = verify(client, mailbox.last_code())
+    assert response.status_code == 200 and response.json() == {"next": "/onboarding"}
+    body = me(client).json()
+    assert body["email"] == "asha@example.com" and body["role"] is None
+
+
+def test_incorrect_code(client, mailbox, maker):
+    request_code(client)
+    code = mailbox.last_code()
+    wrong = f"{(int(code) + 1) % 1000000:06d}"
+    response = verify(client, wrong)
+    assert response.status_code == 400 and response.json()["detail"] == "invalid_code"
+    assert me(client).status_code == 401
+    assert verify(client, code).status_code == 200  # one miss doesn't burn the code
+
+
+def test_expired_code(client, mailbox, maker):
+    request_code(client)
+    age_challenges(maker, minutes=11)
+    response = verify(client, mailbox.last_code())
+    assert response.status_code == 400 and response.json()["detail"] == "expired_code"
+    assert me(client).status_code == 401
+
+
+def test_code_is_single_use(client, mailbox):
+    request_code(client)
+    code = mailbox.last_code()
+    assert verify(client, code).status_code == 200
+    replay = new_client()
+    response = verify(replay, code)
+    assert response.status_code == 400 and response.json()["detail"] == "invalid_code"
+    assert me(replay).status_code == 401
+
+
+def test_too_many_attempts_burns_the_code(client, mailbox):
+    request_code(client)
+    code = mailbox.last_code()
+    wrong = f"{(int(code) + 1) % 1000000:06d}"
+    for _ in range(auth.OTP_MAX_ATTEMPTS - 1):
+        assert verify(client, wrong).json()["detail"] == "invalid_code"
+    assert verify(client, wrong).json()["detail"] == "too_many_attempts"
+    assert verify(client, code).status_code == 400  # even the right code is now dead
+
+
+def test_per_ip_failure_limit(client, mailbox, maker):
+    with maker() as db:
+        for _ in range(auth.IP_HOURLY_FAILURE_LIMIT):
+            db.add(AuthRateEvent(ip_hash=auth.client_ip_hash(
+                type("R", (), {"headers": {"x-forwarded-for": "203.0.113.10"}, "client": None})()),
+                kind="otp_failed"))
+        db.commit()
+    request_code(client)
+    assert verify(client, mailbox.last_code()).status_code == 429
+    assert verify(new_client("198.51.100.9"), mailbox.last_code()).status_code == 200
+
+
+def test_code_for_another_email_does_not_work(client, mailbox):
+    request_code(client, "asha@example.com")
+    request_code(client, "ravi@example.com")
+    asha_code = mailbox.last_code("asha@example.com")
+    ravi_code = mailbox.last_code("ravi@example.com")
+    if asha_code != ravi_code:  # (1-in-a-million coincidence aside)
+        response = verify(client, asha_code, "ravi@example.com")
+        assert response.status_code == 400 and response.json()["detail"] == "invalid_code"
+        assert me(client).status_code == 401
+    assert verify(client, ravi_code, "ravi@example.com").status_code == 200
+    assert me(client).json()["email"] == "ravi@example.com"
+
+
+def test_code_with_spaces_accepted_and_garbage_rejected(client, mailbox):
+    request_code(client)
+    code = mailbox.last_code()
+    assert verify(client, "abcdef").status_code == 400
+    assert verify(client, f"{code[:3]} {code[3:]}").status_code == 200
+
+
+def test_otp_never_appears_in_logs(client, mailbox, caplog):
+    with caplog.at_level(logging.DEBUG):
+        request_code(client)
+        code = mailbox.last_code()
+        verify(client, "000000" if code != "000000" else "111111")
+        verify(client, code)
+    everything = "\n".join(r.getMessage() for r in caplog.records)
+    assert code not in everything
+    assert "asha@example.com" not in everything
+
+
+# --- existing accounts ------------------------------------------------------------
+
+def test_existing_user_gets_existing_account(client, mailbox, maker):
+    with maker() as db:
+        existing_user(db, "old", "Asha@Example.com", is_admin=True)
+        db.commit()
+    response = sign_in(client, mailbox, next_path="/listings")
+    assert response.json() == {"next": "/listings"}
+    body = me(client).json()
+    assert body["id"] == "old" and body["role"] == "provider" and body["isAdmin"] is True
+    with maker() as db:
+        assert db.query(User).count() == 1
+        user = db.get(User, "old")
+        # Legacy identities retained untouched for rollback/history.
+        assert user.clerk_user_id == "user_old" and user.google_sub == "g-old"
+        assert user.email == "Asha@Example.com"
+
+
+def test_duplicate_email_conflict_is_not_merged(client, mailbox, maker):
+    with maker() as db:
+        existing_user(db, "a", "asha@example.com")
+        existing_user(db, "b", "ASHA@example.com")
+        db.commit()
+    response = sign_in(client, mailbox)
+    assert response.status_code == 409 and response.json()["detail"] == "account_conflict"
+    assert me(client).status_code == 401
+    with maker() as db:
+        assert db.query(User).count() == 2 and db.query(AuthSession).count() == 0
+
+
+def test_suspended_account_gets_no_session(client, mailbox, maker):
+    with maker() as db:
+        existing_user(db, "old", "asha@example.com", suspended=True)
+        db.commit()
+    response = sign_in(client, mailbox)
+    assert response.status_code == 403 and response.json()["detail"] == "suspended"
+    assert auth.session_cookie_name() not in client.cookies
+
+
+# --- sessions ----------------------------------------------------------------------
+
+def test_session_created_hashed_and_persistent(client, mailbox, maker):
+    sign_in(client, mailbox)
+    cookie = client.cookies.get(auth.session_cookie_name())
+    with maker() as db:
+        stored = db.scalar(select(AuthSession))
+        assert stored.token_hash == auth.token_hash(cookie) != cookie
+    assert me(client).status_code == 200 and me(client).status_code == 200
+
+
+def test_production_cookie_flags(client, mailbox, monkeypatch):
     monkeypatch.setenv("NODE_ENV", "production")
-    response = sign_in(client, google)
-    cookies = response.headers.get_list("set-cookie")
-    session = next(c for c in cookies if c.startswith("__Host-pontreol_session="))
-    lowered = session.lower()
+    request_code(client)
+    response = verify(client, mailbox.last_code())
+    cookie = next(c for c in response.headers.get_list("set-cookie")
+                  if c.startswith("__Host-pontreol_session="))
+    lowered = cookie.lower()
     assert "httponly" in lowered and "secure" in lowered and "samesite=lax" in lowered
     assert "path=/" in lowered and "domain=" not in lowered and "max-age=2592000" in lowered
+    assert response.headers["cache-control"] == "no-store"
 
 
-def test_expired_session_is_rejected(client, google, maker):
-    sign_in(client, google)
-    with maker() as db:
-        db.execute(update(AuthSession).values(expires_at=auth.utcnow() - timedelta(seconds=1)))
-        db.commit()
-    assert me(client).status_code == 401
-
-
-def test_logout_revokes_server_side_session(client, google, maker):
-    sign_in(client, google)
-    stolen = client.cookies.get(auth.session_cookie_name())
-    response = client.post("/api/auth/logout", headers={"origin": ORIGIN})
-    assert response.status_code == 200
-    assert auth.session_cookie_name() in response.headers["set-cookie"]
-    client.cookies.set(auth.session_cookie_name(), stolen)  # replaying the old cookie
-    assert me(client).status_code == 401
-    with maker() as db:
-        assert db.scalar(select(AuthSession)).revoked_at is not None
-
-
-def test_logout_requires_same_origin(client, google):
-    sign_in(client, google)
-    assert client.post("/api/auth/logout", headers={"origin": "https://evil.example"}).status_code == 403
-    assert client.post("/api/auth/logout").status_code == 403  # no origin signal
-    assert me(client).status_code == 200  # CSRF attempt did not sign the user out
-
-
-def test_new_login_revokes_presented_session(client, google, maker):
-    """Session fixation: a pre-existing cookie never survives a login."""
-    sign_in(client, google)
+def test_sign_in_rotates_presented_session(client, mailbox, maker):
+    sign_in(client, mailbox)
     first = client.cookies.get(auth.session_cookie_name())
-    sign_in(client, google)
+    with maker() as db:
+        db.execute(update(EmailOtpChallenge).values(
+            created_at=auth.utcnow() - timedelta(minutes=2)))
+        db.commit()
+    sign_in(client, mailbox)
     second = client.cookies.get(auth.session_cookie_name())
     assert first != second
     client.cookies.set(auth.session_cookie_name(), first)
     assert me(client).status_code == 401
 
 
-# --- rejected identities --------------------------------------------------------
+def test_expired_session(client, mailbox, maker):
+    sign_in(client, mailbox)
+    with maker() as db:
+        db.execute(update(AuthSession).values(expires_at=auth.utcnow() - timedelta(seconds=1)))
+        db.commit()
+    assert me(client).status_code == 401
 
-def assert_failed(response, code="failed"):
-    assert response.status_code == 302
-    assert response.headers["location"] == f"/sign-in?error={code}"
 
-
-def test_invalid_state(client, google, maker):
-    start(client, google)
-    assert_failed(client.get("/api/auth/google/callback?code=c&state=forged"))
+def test_logout_revokes_server_side_session(client, mailbox, maker):
+    sign_in(client, mailbox)
+    stolen = client.cookies.get(auth.session_cookie_name())
+    response = client.post("/api/auth/logout", headers=SAME_ORIGIN)
+    assert response.status_code == 200
+    client.cookies.set(auth.session_cookie_name(), stolen)
     assert me(client).status_code == 401
     with maker() as db:
-        assert db.query(User).count() == 0
+        assert db.scalar(select(AuthSession)).revoked_at is not None
 
 
-def test_missing_login_cookie_is_login_csrf(client, google):
-    _, query = start(client, google)
-    client.cookies.clear()  # attacker's callback URL opened in victim's browser
-    assert_failed(client.get(f"/api/auth/google/callback?code=c&state={query['state'][0]}"), "expired")
-
-
-def test_callback_replay_is_rejected(client, google):
-    _, query = start(client, google)
-    url = f"/api/auth/google/callback?code=c&state={query['state'][0]}"
-    login_cookie = client.cookies.get(auth.login_cookie_name())
-    assert client.get(url).headers["location"] == "/onboarding"
-    client.cookies.set(auth.login_cookie_name(), login_cookie)
-    assert_failed(client.get(url), "expired")
-
-
-def test_expired_login_attempt(client, google, maker):
-    _, query = start(client, google)
+def test_revoked_session(client, mailbox, maker):
+    sign_in(client, mailbox)
     with maker() as db:
-        db.execute(update(OAuthLoginAttempt).values(created_at=auth.utcnow() - timedelta(minutes=11)))
+        db.execute(update(AuthSession).values(revoked_at=auth.utcnow()))
         db.commit()
-    assert_failed(client.get(f"/api/auth/google/callback?code=c&state={query['state'][0]}"), "expired")
-
-
-@pytest.mark.parametrize("claims", [
-    {"nonce": "attacker-nonce"},                                   # invalid nonce
-    {"nonce": ...},                                                # missing nonce
-    {"iss": "https://evil.example"},                               # invalid issuer
-    {"aud": "someone-else.apps.googleusercontent.com"},            # wrong audience
-    {"azp": "someone-else.apps.googleusercontent.com"},            # wrong authorized party
-    {"exp": int(time.time()) - 120, "iat": int(time.time()) - 600},  # expired token
-    {"email_verified": False},                                     # unverified email
-    {"email_verified": "true"},                                    # not a real boolean
-    {"email": ...},                                                # no email
-])
-def test_invalid_id_token_claims_are_rejected(client, google, maker, claims):
-    assert_failed(sign_in(client, google, **claims))
     assert me(client).status_code == 401
-    with maker() as db:
-        assert db.query(User).count() == 0 and db.query(AuthSession).count() == 0
 
 
-def test_forged_token_signature_is_rejected(client, google, maker):
-    google.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    assert_failed(sign_in(client, google))
-    with maker() as db:
-        assert db.query(User).count() == 0
+# --- CSRF ---------------------------------------------------------------------------
 
-
-def test_google_rejects_code(client, google):
-    google.status = 400
-    assert_failed(sign_in(client, google))
-
-
-def test_user_cancelled_at_google(client, google):
-    _, query = start(client, google)
-    assert_failed(client.get(f"/api/auth/google/callback?error=access_denied&state={query['state'][0]}"),
-                  "cancelled")
-
-
-@pytest.mark.parametrize("unsafe", ["//evil.example/x", "https://evil.example", "/\\evil.example",
-                                    "/api/auth/logout", "javascript:alert(1)"])
-def test_open_redirects_are_blocked(client, google, maker, unsafe):
-    sign_in(client, google)
-    with maker() as db:
-        db.execute(update(User).values(role="buyer"))
-        db.commit()
-    assert sign_in(client, google, next_path=unsafe).headers["location"] == "/home"
-
-
-# --- account linking (Clerk -> Google) ----------------------------------------------
-
-def legacy_user(db, user_id, email, role="provider", **extra):
-    user = User(id=user_id, clerk_user_id=f"user_{user_id}", email=email,
-                display_name=user_id, role=role, **extra)
-    db.add(user)
-    return user
-
-
-def test_clerk_era_account_links_by_verified_email(client, google, maker):
-    with maker() as db:
-        legacy_user(db, "old", "Asha@Example.com", is_admin=True)
-        db.commit()
-    response = sign_in(client, google, next_path="/listings")
-    assert response.headers["location"] == "/listings"
-    body = me(client).json()
-    assert body["id"] == "old" and body["role"] == "provider" and body["isAdmin"] is True
-    with maker() as db:
-        user = db.get(User, "old")
-        assert user.google_sub == "google-sub-1" and user.clerk_user_id == "user_old"
-        assert db.query(User).count() == 1
-
-
-def test_unverified_email_never_links(client, google, maker):
-    with maker() as db:
-        legacy_user(db, "old", "asha@example.com", is_admin=True)
-        db.commit()
-    assert_failed(sign_in(client, google, email_verified=False))
-    with maker() as db:
-        assert db.get(User, "old").google_sub is None
-
-
-def test_email_owned_by_other_google_account_is_not_merged(client, google, maker):
-    with maker() as db:
-        legacy_user(db, "old", "asha@example.com", google_sub="google-sub-OTHER")
-        db.commit()
-    assert_failed(sign_in(client, google))
-    with maker() as db:
-        assert db.get(User, "old").google_sub == "google-sub-OTHER"
-        assert db.query(User).count() == 1
-
-
-def test_ambiguous_duplicate_emails_are_not_merged(client, google, maker):
-    with maker() as db:
-        legacy_user(db, "a", "asha@example.com")
-        legacy_user(db, "b", "ASHA@example.com")
-        db.commit()
-    assert_failed(sign_in(client, google))
-    with maker() as db:
-        assert all(u.google_sub is None for u in db.query(User))
+@pytest.mark.parametrize("headers", [{}, {"origin": "https://evil.example"},
+                                     {"sec-fetch-site": "cross-site"}])
+def test_csrf_on_every_auth_mutation(client, mailbox, headers):
+    assert client.post("/api/auth/otp/request", json={"email": "a@example.com"},
+                       headers=headers).status_code == 403
+    assert client.post("/api/auth/otp/verify", json={"email": "a@example.com", "code": "123456"},
+                       headers=headers).status_code == 403
+    assert mailbox.sent == []
+    sign_in(client, mailbox)
+    assert client.post("/api/auth/logout", headers=headers).status_code == 403
+    assert me(client).status_code == 200  # forged logout did nothing
+    assert client.patch("/api/me", json={"displayName": "Hacked"}, headers=headers).status_code == 403
 
 
 # --- authorization after sign-in ------------------------------------------------------
 
-def test_suspended_account_gets_no_session(client, google, maker):
+def test_roles_and_admin_come_from_database(client, mailbox, maker):
     with maker() as db:
-        legacy_user(db, "old", "asha@example.com", suspended=True)
+        existing_user(db, "old", "asha@example.com", role="buyer")
         db.commit()
-    assert_failed(sign_in(client, google), "suspended")
-    assert auth.session_cookie_name() not in client.cookies
+    sign_in(client, mailbox)
+    assert client.get("/api/my/listings").status_code == 403    # provider only
+    assert client.get("/api/admin/users").status_code == 403    # admin only
+    client.patch("/api/me", json={"role": "provider", "isAdmin": True}, headers=SAME_ORIGIN)
+    assert me(client).json()["role"] == "buyer" and me(client).json()["isAdmin"] is False
+    with maker() as db:
+        db.execute(update(User).values(is_admin=True, role="provider"))
+        db.commit()
+    assert client.get("/api/admin/users").status_code == 200
+    assert client.get("/api/my/listings").status_code == 200
 
 
-def test_suspension_after_sign_in_blocks_existing_session(client, google, maker):
+def test_suspension_after_sign_in_blocks_session(client, mailbox, maker):
     with maker() as db:
-        legacy_user(db, "old", "asha@example.com", role="buyer")
+        existing_user(db, "old", "asha@example.com", role="buyer")
         db.commit()
-    sign_in(client, google)
-    assert me(client).status_code == 200
+    sign_in(client, mailbox)
     with maker() as db:
         db.execute(update(User).values(suspended=True))
         db.commit()
     assert me(client).status_code == 403
 
 
-def test_roles_and_admin_come_from_database_not_client(client, google, maker):
-    with maker() as db:
-        legacy_user(db, "old", "asha@example.com", role="buyer")
-        db.commit()
-    sign_in(client, google)
-    assert client.get("/api/my/listings").status_code == 403           # provider-only
-    assert client.get("/api/admin/users").status_code == 403           # admin-only
-    # Client-supplied role/admin claims are ignored.
-    patched = client.patch("/api/me", json={"role": "provider", "isAdmin": True},
-                           headers={"origin": ORIGIN})
-    assert patched.status_code == 200
-    assert me(client).json()["role"] == "buyer" and me(client).json()["isAdmin"] is False
-    with maker() as db:
-        db.execute(update(User).values(is_admin=True))
-        db.commit()
-    assert client.get("/api/admin/users").status_code == 200
-
-
-def test_role_less_account_is_limited_to_onboarding(client, google):
-    sign_in(client, google)
+def test_role_less_account_limited_to_onboarding(client, mailbox):
+    sign_in(client, mailbox)
     assert me(client).status_code == 200
     assert client.get("/api/listings").status_code == 403
 
 
-def test_cookie_mutation_without_origin_is_rejected(client, google):
-    sign_in(client, google)
-    response = client.patch("/api/me", json={"displayName": "Hacked"})
-    assert response.status_code == 403
-    cross = client.patch("/api/me", json={"displayName": "Hacked"},
-                         headers={"origin": "https://evil.example"})
-    assert cross.status_code == 403
-    assert me(client).json()["displayName"] == "Asha"
+@pytest.mark.parametrize("unsafe", ["//evil.example/x", "https://evil.example", "/\\evil.example",
+                                    "/api/auth/logout", "javascript:alert(1)"])
+def test_next_cannot_redirect_off_site(client, mailbox, maker, unsafe):
+    with maker() as db:
+        existing_user(db, "old", "asha@example.com", role="buyer")
+        db.commit()
+    assert sign_in(client, mailbox, next_path=unsafe).json() == {"next": "/home"}
 
 
-def test_account_isolation(client, google, maker):
-    other = TestClient(app, base_url=ORIGIN, follow_redirects=False)
-    sign_in(client, google)
-    sign_in(other, google, sub="google-sub-2", email="ravi@example.com", name="Ravi")
+def test_account_isolation(client, mailbox, maker):
+    other = new_client("198.51.100.20")
+    sign_in(client, mailbox, "asha@example.com")
+    sign_in(other, mailbox, "ravi@example.com")
     assert me(client).json()["email"] == "asha@example.com"
     assert me(other).json()["email"] == "ravi@example.com"
-    other.post("/api/auth/logout", headers={"origin": ORIGIN})
-    assert me(client).status_code == 200  # one user's logout never affects another
+    other.post("/api/auth/logout", headers=SAME_ORIGIN)
+    assert me(client).status_code == 200
     with maker() as db:
         assert db.query(User).count() == 2
 
@@ -439,3 +500,8 @@ def test_signed_out_access(client):
     assert me(client).status_code == 401
     client.cookies.set(auth.session_cookie_name(), secrets.token_urlsafe(32))
     assert me(client).status_code == 401
+
+
+def test_google_sign_in_routes_are_gone(client):
+    assert client.get("/api/auth/google/start").status_code == 404
+    assert client.get("/api/auth/google/callback").status_code == 404

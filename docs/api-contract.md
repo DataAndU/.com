@@ -2,10 +2,9 @@
 
 Base URL: `/api`. JSON fields are **camelCase**. IDs are UUID strings. Timestamps are
 RFC 3339 UTC strings. Browser authentication is Pontreol's own opaque, HttpOnly
-session cookie issued after Google sign-in (`/api/auth/*`); clients must not send a
-user ID or role. All endpoints except `GET /healthz`, `GET /readyz`,
-`POST /billing/webhook` and the `/auth/google/*` sign-in redirects require
-authentication. Mutations require a same-origin `Origin` or `Sec-Fetch-Site: same-origin`
+session cookie issued after email one-time-code sign-in (`/api/auth/*`); clients must
+not send a user ID or role. All endpoints except `GET /healthz`, `GET /readyz`,
+`POST /billing/webhook` and `POST /auth/otp/*` require authentication. Mutations require a same-origin `Origin` or `Sec-Fetch-Site: same-origin`
 header (requests with neither are rejected) and JSON unless the contract says otherwise. Errors are `{ "detail": string }`.
 
 ## Shared shapes
@@ -32,8 +31,8 @@ Category `attributes` are exact camelCase objects:
 | Method/path | Request | Success response |
 |---|---|---|
 | `GET /me` | — | `User` for the current session |
-| `GET /auth/google/start?next=` | — | 302 to Google (OIDC code flow, state + nonce + PKCE) |
-| `GET /auth/google/callback` | Google redirect | 302 to `next` (or `/onboarding`), sets session cookie; errors 302 to `/sign-in?error=` |
+| `POST /auth/otp/request` | `{ email }` | `{ sent: true, expiresIn: 600, resendAfter: 60 }` (same for known and unknown emails); `429 rate_limited` + `Retry-After`; `503 email_send_failed`/`email_unavailable`; `422 invalid_email` |
+| `POST /auth/otp/verify` | `{ email, code, next? }` | `{ next }` + session cookie; `400 invalid_code`/`expired_code`/`too_many_attempts`; `403 suspended`; `409 account_conflict`; `429 rate_limited` |
 | `POST /auth/logout` | `{}` | `{ signedOut: true }`; revokes the server-side session |
 | `PUT /me/role` | `{ role: "buyer"|"provider" }` | `User`; first value is permanent; conflicting/repeated concurrent selection is `409` |
 | `PATCH /me` | `{ displayName?, phone?, contactEmailVisible?, contactPhoneVisible? }` | `User` |

@@ -1,14 +1,5 @@
 "use client";
 
-
-/** Full-page navigation to the API's Google sign-in start endpoint. */
-export function googleSignInUrl(next?: string | null) {
-  const params = new URLSearchParams();
-  if (next && next.startsWith("/") && !next.startsWith("//")) params.set("next", next);
-  const query = params.toString();
-  return `/api/auth/google/start${query ? `?${query}` : ""}`;
-}
-
 /**
  * Revoke the server-side session, then hard-navigate so every in-memory
  * cache (React Query, component state) from this account is discarded.

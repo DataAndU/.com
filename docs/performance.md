@@ -4,7 +4,7 @@
 
 Architecture: Next.js 16 App Router (`artifacts/pontreol`) serves pages; FastAPI
 (`artifacts/api-server/python`, sync SQLAlchemy + psycopg 3) serves `/api/*`.
-Replit's router puts both on one origin. At the time, Clerk handled identity (since replaced by native Google sign-in, docs/authentication.md); the API
+Replit's router puts both on one origin. At the time, Clerk handled identity (since replaced by email one-time-code sign-in, docs/authentication.md); the API
 verifies the `__session` JWT itself (JWKS cached for 5 min) and loads the user
 row on every request (`deps.current_user`).
 
@@ -110,7 +110,7 @@ behind the same `bounding_box` helper.
   API log's `duration_ms` excludes it; compare against the browser's total
   time to tell them apart.
 - **Per-process warm-up:** the first request after a cold start also pays for
-  opening the DB pool (and, for sign-ins, fetching Google's OIDC keys). Later requests reuse all three.
+  opening the DB pool. Later requests reuse all three.
 - **Keeping it warm:** a Replit Reserved VM (or any always-on host) removes cold
   starts. That is a hosting choice; no code change is needed.
 
@@ -123,8 +123,8 @@ No Replit hostnames are hard-coded. Required on any host:
   It must forward `Host` and `X-Forwarded-Host` / `X-Forwarded-Proto`.
 - `ALLOWED_ORIGINS=https://your-domain` (trusted hosts, CORS/CSRF origin checks,
   Google callback URL).
-- `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Clerk was removed;
-  see `docs/authentication.md`).
+- `DATABASE_URL`, `RESEND_API_KEY`/`RESEND_FROM` (sign-in is email OTP; see
+  `docs/authentication.md`).
 - Razorpay: `RAZORPAY_MODE` and the matching `RAZORPAY_{TEST|LIVE}_*` secrets;
   point the webhook to `https://your-domain/api/billing/webhook`.
 - Object storage: `DEFAULT_OBJECT_STORAGE_BUCKET_ID` and `PRIVATE_OBJECT_DIR`,
