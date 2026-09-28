@@ -22,6 +22,13 @@ export default function CategoriesPage() {
       </div>
       
       <div className="flex-1 p-6">
+        <Link href="/bundles/moving" className="max-w-4xl mx-auto mb-4 flex items-center justify-between gap-4 rounded-xl border border-primary/40 bg-gradient-to-r from-primary/15 to-transparent p-5 hover:border-primary">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">Bundle</p>
+            <h2 className="text-lg font-semibold">Moving house? Tempo + helpers + cleaning in one go</h2>
+          </div>
+          <ArrowRight className="h-5 w-5 shrink-0 text-primary" />
+        </Link>
         <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {CATEGORIES.map((cat) => (
             <Link 

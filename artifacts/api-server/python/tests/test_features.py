@@ -346,3 +346,28 @@ def test_trip_share_rules(trip, maker):
         db.commit()
     assert anonymous.get(f"/api/trips/shared/{second}").status_code == 404  # expired
     assert anonymous.get("/api/trips/shared/guess").status_code == 404
+
+
+# --- Moving house bundle (frontend sends ordinary bookings; verify the contract) -----
+
+def test_moving_bundle_payloads_are_accepted(people, maker):
+    with maker() as db:
+        db.add(Listing(id="l-tempo", provider_id="prov2", category="delivery", title="Tata Ace tempo",
+                       description="Local house shifting tempo", price=1500, pricing_mode="negotiable",
+                       location_label="Koramangala", latitude=12.93, longitude=77.62,
+                       attributes={"vehicleType": "Tata Ace", "maxLoadCapacity": 750, "serviceRadiusKm": 30}))
+        db.commit()
+    when = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+    frm = {"label": "Koramangala, Bengaluru", "latitude": 12.93, "longitude": 77.62}
+    to = {"label": "Indiranagar, Bengaluru", "latitude": 12.97, "longitude": 77.64}
+    buyer = people["buyer"]
+    delivery = buyer.post("/api/bookings/delivery", headers=SAME, json={
+        "listingId": "l-tempo", "pickupAt": when, "itemDescription": "1BHK: bed, fridge, 15 boxes",
+        "note": "Moving house bundle.", "pickup": frm, "dropoff": to})
+    helper = buyer.post("/api/bookings/services", headers=SAME, json={
+        "listingId": "l-prov", "requestedAt": when,
+        "note": "Moving house bundle: Koramangala → Indiranagar. Items: 1BHK."})
+    assert delivery.status_code == 201, delivery.text
+    assert helper.status_code == 201, helper.text
+    mine = buyer.get("/api/bookings").json()["items"]
+    assert {b["category"] for b in mine} == {"delivery", "services"}
