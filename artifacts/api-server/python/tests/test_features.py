@@ -194,3 +194,60 @@ def test_slow_replies_do_not_earn_badge_and_provider_double_messages_ignored(peo
     people["prov"].post(f"/api/conversations/{convo_id}/messages", json={"text": "Also..."}, headers=SAME)
     with maker() as db:
         assert db.get(User, "prov").response_samples == samples  # not a reply to the buyer
+
+
+# --- Refer a provider -------------------------------------------------------------
+
+def signed_in(maker, user_id):
+    with maker() as db:
+        token = auth.create_session(db, user_id)
+        db.commit()
+    client = TestClient(app, base_url=ORIGIN)
+    client.cookies.set(auth.session_cookie_name(), token)
+    return client
+
+
+def test_referral_credit_when_invitee_becomes_provider(people, maker):
+    ref = people["prov"].get("/api/me/referral").json()
+    assert len(ref["code"]) == 8 and ref["path"] == f"/sign-up?ref={ref['code']}"
+    assert people["prov"].get("/api/me/referral").json()["code"] == ref["code"]  # stable
+    with maker() as db:
+        new, outcome = auth.find_or_create_user(db, "friend@example.com", ref["code"].lower())
+        db.commit()
+        assert outcome == "created" and new.referred_by == "prov"
+        new_id = new.id
+    friend = signed_in(maker, new_id)
+    assert friend.put("/api/me/role", json={"role": "provider"}, headers=SAME).status_code == 200
+    friend.put("/api/me/role", json={"role": "provider"}, headers=SAME)  # repeat: no double credit
+    stats = people["prov"].get("/api/me/referral").json()
+    assert stats["invited"] == 1 and stats["providers"] == 1 and stats["creditMonths"] == 1
+
+
+def test_buyer_invitees_do_not_earn_credit(people, maker):
+    code = people["prov"].get("/api/me/referral").json()["code"]
+    with maker() as db:
+        new, _ = auth.find_or_create_user(db, "buyer2@example.com", code)
+        db.commit()
+        new_id = new.id
+    signed_in(maker, new_id).put("/api/me/role", json={"role": "buyer"}, headers=SAME)
+    assert people["prov"].get("/api/me/referral").json()["creditMonths"] == 0
+
+
+def test_existing_accounts_and_bad_codes_are_never_linked(people, maker):
+    code = people["prov"].get("/api/me/referral").json()["code"]
+    with maker() as db:
+        existing, outcome = auth.find_or_create_user(db, "prov2@example.com", code)
+        assert outcome == "existing" and existing.referred_by is None
+        new, _ = auth.find_or_create_user(db, "x@example.com", "NOTACODE")
+        assert new.referred_by is None
+        db.commit()
+
+
+def test_admin_referral_report_is_admin_only(people, maker):
+    assert people["buyer"].get("/api/admin/referrals").status_code == 403
+    with maker() as db:
+        db.execute(update(User).where(User.id == "buyer").values(is_admin=True))
+        db.execute(update(User).where(User.id == "prov").values(referral_credit_months=2))
+        db.commit()
+    items = people["buyer"].get("/api/admin/referrals").json()["items"]
+    assert [(i["id"], i["creditMonths"]) for i in items] == [("prov", 2)]

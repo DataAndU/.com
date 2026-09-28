@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { FileSearch, Loader2, Search, ShieldAlert } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchApi } from "@/lib/api/client";
 import { useMe } from "@/lib/api/account";
 import {
   useAdminAudit,
@@ -14,8 +16,8 @@ import {
 } from "@/lib/api/admin";
 import { BillingAdminPanel } from "./billing-admin-panel";
 
-type Tab = "verifications" | "users" | "listings" | "audit" | "billing";
-const tabs: Tab[] = ["verifications", "users", "listings", "audit", "billing"];
+type Tab = "verifications" | "users" | "listings" | "audit" | "billing" | "referrals";
+const tabs: Tab[] = ["verifications", "users", "listings", "audit", "billing", "referrals"];
 const inputClass = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 export function AdminConsole() {
@@ -41,6 +43,7 @@ function AuthorizedAdminConsole() {
       {tab === "listings" && <ListingModeration />}
       {tab === "audit" && <AuditLog />}
       {tab === "billing" && <BillingAdminPanel />}
+      {tab === "referrals" && <ReferralReport />}
     </section>
   );
 }
@@ -142,6 +145,26 @@ function AuditLog() {
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
   const query = useAdminAudit(cursor, 25);
   return <Panel title="Audit trail" loading={query.isLoading} error={query.error}><div className="space-y-2">{query.data?.items.map((record) => <article key={record.id} className="rounded-lg border border-border bg-card p-4" data-testid={`row-audit-${record.id}`}><div className="flex flex-wrap justify-between gap-2"><p className="font-mono text-sm text-primary">{record.action}</p><time className="text-xs text-muted-foreground">{new Date(record.createdAt).toLocaleString()}</time></div><p className="mt-1 text-sm text-muted-foreground">{record.targetType} · {record.targetId}</p><pre className="mt-2 overflow-x-auto text-xs text-muted-foreground">{JSON.stringify(record.metadata, null, 2)}</pre></article>)}{!query.data?.items.length && !query.isLoading && <Empty text="No audit records." />}</div><CursorNav cursor={cursor} history={cursorHistory} nextCursor={query.data?.nextCursor} loading={query.isFetching} testId="audit" onChange={(next, history) => { setCursor(next); setCursorHistory(history); }} /></Panel>;
+}
+
+function ReferralReport() {
+  const query = useQuery<{ items: { id: string; email: string; displayName: string; creditMonths: number }[] }>({
+    queryKey: ["admin-referrals"], queryFn: () => fetchApi("/admin/referrals"),
+  });
+  return (
+    <Panel title="Referral credits" loading={query.isLoading} error={query.error}>
+      <p className="mb-4 text-sm text-muted-foreground">Free months earned by inviting providers. Apply them to the person's plan (for example with a discount code in Billing).</p>
+      <div className="divide-y divide-border rounded-xl border border-border bg-card">
+        {query.data?.items.map((item) => (
+          <div key={item.id} className="flex items-center justify-between p-4 text-sm">
+            <span><span className="font-medium">{item.displayName}</span> <span className="text-muted-foreground">{item.email}</span></span>
+            <span className="font-semibold text-primary">{item.creditMonths} free {item.creditMonths === 1 ? "month" : "months"}</span>
+          </div>
+        ))}
+        {query.data && query.data.items.length === 0 && <p className="p-6 text-center text-sm text-muted-foreground">No referral credits yet.</p>}
+      </div>
+    </Panel>
+  );
 }
 
 function Panel({ title, loading, error, children }: { title: string; loading: boolean; error: Error | null; children: React.ReactNode }) {

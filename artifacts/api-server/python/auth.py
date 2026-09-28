@@ -153,6 +153,7 @@ class OtpVerifyBody(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     code: str = Field(min_length=1, max_length=12)
     next: str | None = Field(None, max_length=512)
+    ref: str | None = Field(None, max_length=32)
 
 
 @router.post("/auth/otp/request")
@@ -209,7 +210,7 @@ def request_code(body: OtpRequestBody, request: Request, db: Session = Depends(g
             "resendAfter": int(RESEND_COOLDOWN.total_seconds())}
 
 
-def find_or_create_user(db, email):
+def find_or_create_user(db, email, ref=None):
     """Existing account by normalized email, else a new one. Never merges."""
     if db.get_bind().dialect.name == "postgresql":
         # Serialize first sign-ins per address (email has no unique constraint
@@ -224,6 +225,11 @@ def find_or_create_user(db, email):
     if matches:
         return matches[0], "existing"
     user = User(email=email, display_name=email.split("@")[0][:120])
+    if ref:
+        import referrals
+        referrer = referrals.find_referrer(db, ref)
+        if referrer is not None and not referrer.suspended:
+            user.referred_by = referrer.id  # only ever set on brand-new accounts
     db.add(user)
     db.flush()
     return user, "created"
@@ -271,10 +277,10 @@ def verify_code(body: OtpVerifyBody, request: Request, db: Session = Depends(get
     challenge.consumed_at = now
     db.commit()
     try:
-        user, outcome = find_or_create_user(db, email)
+        user, outcome = find_or_create_user(db, email, body.ref)
     except IntegrityError:
         db.rollback()  # concurrent first sign-in for the same address
-        user, outcome = find_or_create_user(db, email)
+        user, outcome = find_or_create_user(db, email, body.ref)
     if user.suspended:
         db.commit()
         raise HTTPException(403, "suspended")

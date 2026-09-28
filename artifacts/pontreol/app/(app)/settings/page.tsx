@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Bell, Loader2, Save, ShieldCheck, UserRound } from "lucide-react";
 import { useMe, useUpdateProfile } from "@/lib/api/account";
 import { VerificationPanel } from "@/components/verification-panel";
+import { InviteCard } from "@/components/invite-card";
 import { NotificationCenter } from "@/components/notification-center";
 
 const inputClass = "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
@@ -59,6 +60,8 @@ export default function SettingsPage() {
             {updateProfile.error && <p className="text-sm text-red-300" role="alert" data-testid="status-profile-error">{updateProfile.error.message}</p>}
           </form>
         </section>
+
+        <InviteCard />
 
         <div>
           <div className="mb-3 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h2 className="font-semibold">Verification</h2></div><Link data-testid="link-full-verification" className="text-sm text-primary hover:underline" href="/verification">Open dedicated page</Link></div>

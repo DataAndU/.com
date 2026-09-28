@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from common import FOUNDING_PROVIDER_LIMIT, provider_json, user_json
+import referrals
 from deps import current_user, get_db, require_role
 from models import Listing, Review, User
 
@@ -40,6 +41,7 @@ def set_role(body: RoleBody, db: Session = Depends(get_db), user=Depends(current
         # Count before assigning the role so this user is not counted yet.
         providers = db.scalar(select(func.count()).select_from(User).where(User.role == "provider"))
         locked.founding_provider = providers < FOUNDING_PROVIDER_LIMIT
+        referrals.credit_referrer(db, locked)
     locked.role = body.role
     db.flush()
     return user_json(locked)

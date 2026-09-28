@@ -34,7 +34,7 @@ function errorFor(data: any) {
 }
 
 /** Server-rendered email step; the code step appears after "Continue". */
-export function EmailSignIn({ mode, next }: { mode: "sign in" | "sign up"; next?: string }) {
+export function EmailSignIn({ mode, next, referral }: { mode: "sign in" | "sign up"; next?: string; referral?: string }) {
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -82,7 +82,7 @@ export function EmailSignIn({ mode, next }: { mode: "sign in" | "sign up"; next?
     setError("");
     setPending(true);
     try {
-      const result = await post("/api/auth/otp/verify", { email, code, next });
+      const result = await post("/api/auth/otp/verify", { email, code, next, ref: referral });
       if (result.ok) {
         // Full navigation: no cached data from any previous account survives.
         window.location.assign(result.data.next || "/home");
@@ -107,6 +107,7 @@ export function EmailSignIn({ mode, next }: { mode: "sign in" | "sign up"; next?
       <div className="w-full max-w-md rounded-2xl border border-[#2a2d33] bg-[#16181A] px-7 py-9 text-white shadow-2xl">
         <img src="/logo.svg" alt="Pontreol" className="mx-auto mb-6 h-10 max-w-40" />
         <h1 className="text-center text-xl font-semibold">{heading}</h1>
+        {referral && <p className="mt-2 text-center text-xs text-primary">You were invited to Pontreol 🎉</p>}
 
         {step === "email" ? (
           <form onSubmit={sendCode} className="mt-6 text-left" noValidate>

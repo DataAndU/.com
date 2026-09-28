@@ -36,6 +36,12 @@ export function useUpdateRole() {
   });
 }
 
+export type ReferralStats = { code: string; path: string; invited: number; providers: number; creditMonths: number };
+
+export function useReferral() {
+  return useQuery<ReferralStats>({ queryKey: ["referral"], queryFn: () => fetchApi("/me/referral"), staleTime: 60_000 });
+}
+
 /** Provider "Available now" switch; the server turns it off after `hours`. */
 export function useSetAvailability() {
   const queryClient = useQueryClient();

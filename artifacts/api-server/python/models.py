@@ -43,6 +43,10 @@ class User(Base):
     founding_provider = Column(Boolean, nullable=False, default=False, server_default="false")
     avg_response_minutes = Column(Float)
     response_samples = Column(Integer, nullable=False, default=0, server_default="0")
+    # Refer-a-provider (migration 0006).
+    referral_code = Column(String(16), unique=True, index=True)
+    referred_by = Column(String(36), ForeignKey("users.id"))
+    referral_credit_months = Column(Integer, nullable=False, default=0, server_default="0")
     review_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
