@@ -16,7 +16,7 @@ WORKDIR /app
 # Dependencies first (cached layer), exactly as locked in uv.lock.
 COPY pyproject.toml uv.lock .python-version ./
 RUN test "$(python -c 'import sys;print(f"{sys.version_info[0]}.{sys.version_info[1]}")')" = "$(cat .python-version)" \
- && uv sync --frozen --no-install-project
+ && uv sync --frozen --no-install-project --no-dev
 
 COPY artifacts/api-server/python ./artifacts/api-server/python
 COPY artifacts/api-server/migrations ./artifacts/api-server/migrations

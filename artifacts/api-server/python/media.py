@@ -1,6 +1,3 @@
-import base64
-import binascii
-import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -8,10 +5,10 @@ from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
-from google.cloud import storage
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+import spaces
 from common import media_json
 from deps import current_user, get_db
 from models import Media, uid
@@ -20,52 +17,30 @@ router = APIRouter()
 TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 
-_storage_client = None
+_storage = None
 
 
-def _service_account_info():
-    """Service-account key supplied as an environment secret (App Platform has
-    no persistent filesystem for a key file). Accepts raw JSON or base64 JSON.
-    Returns None when unset so file-based/ambient credentials still work."""
-    raw = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "").strip()
-    if not raw:
-        return None
-    if not raw.startswith("{"):
-        try:
-            raw = base64.b64decode(raw, validate=True).decode()
-        except (binascii.Error, UnicodeDecodeError) as exc:
-            raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON or base64") from exc
-    try:
-        info = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        # Never echo the value: it contains a private key.
-        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON") from exc
-    if info.get("type") != "service_account" or not info.get("private_key"):
-        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON must be a service-account key")
-    return info
-
-
-def _client():
-    # Credential discovery is slow; reuse one thread-safe client per process.
-    global _storage_client
-    if _storage_client is None:
-        info = _service_account_info()
-        _storage_client = (storage.Client.from_service_account_info(info) if info
-                           else storage.Client())
-    return _storage_client
+def _bucket_client():
+    # Reuse one thread-safe client per process (connection pooling).
+    global _storage
+    if _storage is None:
+        _, _, bucket_name, _, _ = spaces.settings()
+        _storage = spaces.SpacesBucket(spaces.make_client(), bucket_name)
+    return _storage
 
 
 def bucket():
-    bucket_id = os.getenv("DEFAULT_OBJECT_STORAGE_BUCKET_ID")
     private_dir = os.getenv("PRIVATE_OBJECT_DIR", "").strip("/")
-    if not bucket_id or not private_dir:
+    if not private_dir:
         raise HTTPException(503, "Durable cloud storage is not configured")
     try:
-        return _client().bucket(bucket_id), private_dir
+        return _bucket_client(), private_dir
+    except spaces.StorageNotConfigured as exc:
+        # Names missing variables only; never values.
+        logging.getLogger("pontreol.storage").warning("Photo storage not configured: %s", exc)
+        raise HTTPException(503, "Durable cloud storage is not configured") from exc
     except Exception as exc:
-        # ValueError messages above are written to be secret-free.
-        detail = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
-        logging.getLogger("pontreol.storage").warning("Cloud storage client unavailable: %s", detail)
+        logging.getLogger("pontreol.storage").warning("Photo storage unavailable: %s", type(exc).__name__)
         raise HTTPException(503, "Durable cloud storage is unavailable") from exc
 
 

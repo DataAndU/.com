@@ -111,11 +111,17 @@ services:
       - key: RAZORPAY_LIVE_WEBHOOK_SECRET
         type: SECRET
         scope: RUN_TIME
-      # Full service-account key JSON (or base64 of it). Never commit it.
-      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+      # Photo storage: DigitalOcean Spaces (Spaces Object Storage -> Access Keys).
+      - key: SPACES_KEY
+        scope: RUN_TIME
+      - key: SPACES_SECRET
         type: SECRET
         scope: RUN_TIME
-      - key: DEFAULT_OBJECT_STORAGE_BUCKET_ID
+      - key: SPACES_BUCKET
+        value: pontreol-media
+        scope: RUN_TIME
+      - key: SPACES_REGION
+        value: blr1
         scope: RUN_TIME
       - key: PRIVATE_OBJECT_DIR
         value: private

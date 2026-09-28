@@ -122,14 +122,13 @@ No Replit hostnames are hard-coded. Required on any host:
   uvicorn (`:8080`) and everything else to `next start` (`:21805` or `PORT`).
   It must forward `Host` and `X-Forwarded-Host` / `X-Forwarded-Proto`.
 - `ALLOWED_ORIGINS=https://your-domain` (trusted hosts, CORS/CSRF origin checks,
-  Google callback URL).
+  sign-in).
 - `DATABASE_URL`, `RESEND_API_KEY`/`RESEND_FROM` (sign-in is email OTP; see
   `docs/authentication.md`).
 - Razorpay: `RAZORPAY_MODE` and the matching `RAZORPAY_{TEST|LIVE}_*` secrets;
   point the webhook to `https://your-domain/api/billing/webhook`.
-- Object storage: `DEFAULT_OBJECT_STORAGE_BUCKET_ID` and `PRIVATE_OBJECT_DIR`,
-  plus Google Cloud credentials (`GOOGLE_APPLICATION_CREDENTIALS`). On Replit
-  these are provided implicitly.
+- Photo storage: DigitalOcean Spaces (`SPACES_KEY`, `SPACES_SECRET`, `SPACES_BUCKET`,
+  `SPACES_REGION`, `PRIVATE_OBJECT_DIR`).
 - Email: the outbox calls the Resend HTTP API directly with `RESEND_API_KEY`
   and `RESEND_FROM` (no Replit connector). Without them, emails stay queued.
 - Full runbook: `docs/deployment-digitalocean.md`.

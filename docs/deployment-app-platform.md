@@ -36,14 +36,21 @@ It only creates three indexes (`CREATE INDEX CONCURRENTLY IF NOT EXISTS`) and
 runs `ANALYZE`. It refuses any file containing DROP/TRUNCATE/DELETE/ALTER/UPDATE,
 detects interrupted builds, and is safe to run again.
 
-## Google Cloud Storage on App Platform
+## Photo storage: DigitalOcean Spaces
 
-App Platform has no persistent disk for a key file. Paste the service-account
-JSON key (whole file, or its base64) into the secret
-`GOOGLE_APPLICATION_CREDENTIALS_JSON`. The bucket stays private. Photos are
-still served through `/api/media/{id}` with short-lived signed URLs. Apply
-the upload CORS rule once:
-`gcloud storage buckets update gs://BUCKET --cors-file=deploy/digitalocean/gcs-cors.json`.
+Listing photos and private ID images live in a **private** DigitalOcean Space. Browsers
+upload straight to the Space and view images through `/api/media/{id}`, which checks
+permission and then redirects to a short-lived signed link. The access keys never
+leave the API.
+
+1. **Spaces Object Storage → Create Bucket:** region **Bangalore (BLR1)**, name
+   `pontreol-media`, **Restrict File Listing** on. Don't enable the CDN.
+2. **Spaces Object Storage → Access Keys → Create Access Key:** choose **Limited
+   Access** to `pontreol-media` with Read/Write/Delete permissions. Copy the Access
+   Key ID to `SPACES_KEY` and the Secret Key to `SPACES_SECRET` (encrypted).
+3. After a deploy, run this once from the **api** Console. It allows uploads from
+   pontreol.com (CORS) and confirms the Space is private:
+   `python python/configure_spaces.py`
 
 ## Failure behaviour
 
@@ -69,16 +76,17 @@ The migration's indexes can stay in place; older code ignores them.
 | `RAZORPAY_LIVE_KEY_ID` | | ✓ | no | must start `rzp_live_` |
 | `RAZORPAY_LIVE_KEY_SECRET` | | ✓ | **yes** | |
 | `RAZORPAY_LIVE_WEBHOOK_SECRET` | | ✓ | **yes** | webhook URL `https://pontreol.com/api/billing/webhook`, subscription events |
-| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | | ✓ | **yes** | entire service-account JSON key (or base64 of it) |
-| `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | | ✓ | no | bucket name |
+| `SPACES_KEY` | | ✓ | no | Spaces access key ID |
+| `SPACES_SECRET` | | ✓ | **yes** | Spaces secret key |
+| `SPACES_BUCKET` | | ✓ | no | `pontreol-media` (preset) |
+| `SPACES_REGION` | | ✓ | no | `blr1` (preset) |
 | `PRIVATE_OBJECT_DIR` | | ✓ | no | `private` (keep the Replit value if copying old photos) |
 | `RESEND_API_KEY` | | ✓ | **yes** | `re_…`, "Sending access" is enough. **Required for sign-in** (email codes) |
 | `RESEND_FROM` | | ✓ | no | `Pontreol <notifications@pontreol.com>`; domain must be verified in Resend |
 | `NOMINATIM_USER_AGENT`, `LOG_LEVEL`, `SLOW_REQUEST_MS` | | ✓ | no | fixed |
 
 Not needed: any `CLERK_*` or `GOOGLE_CLIENT_*` variable (sign-in is email OTP; see
-docs/authentication.md). `GOOGLE_APPLICATION_CREDENTIALS_JSON` is **storage**, still needed.
-`GOOGLE_APPLICATION_CREDENTIALS` (file path; Droplet only), `REPLIT_*`, and
+docs/authentication.md), any `GOOGLE_*` variable (photos moved to Spaces), `REPLIT_*`, and
 `RAZORPAY_TEST_*` (live mode ignores them).
 
 ### Database: copy, don't start empty

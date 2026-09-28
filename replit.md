@@ -18,7 +18,7 @@ Location-based availability marketplace connecting buyers and providers. Marketp
 - Frontend: Next.js App Router, TypeScript, Tailwind CSS
 - API: Python FastAPI
 - DB: PostgreSQL + SQLAlchemy; legacy Drizzle scaffolding is not the marketplace schema
-- Validation: Pydantic on the API; Google OIDC sign-in with Pontreol server-side sessions (docs/authentication.md); database roles enforce permissions
+- Validation: Pydantic on the API; email one-time-code sign-in with Pontreol server-side sessions (docs/authentication.md); database roles enforce permissions
 - API contracts: `docs/api-contract.md`, `docs/billing-contract.md`, FastAPI OpenAPI
 
 ## Where things live

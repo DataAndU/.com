@@ -83,8 +83,8 @@ Sign-in needs Resend:
   verified in Resend
 
 Without them, `/api/auth/otp/request` returns `503 email_unavailable`. No Google or
-Clerk variables are used for authentication. `GOOGLE_APPLICATION_CREDENTIALS_JSON`
-is for **photo storage** and is still required.
+Clerk variables are used for authentication. (Photos use DigitalOcean Spaces:
+`SPACES_*`.)
 
 ## Database migrations
 

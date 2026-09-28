@@ -5,7 +5,7 @@ Next.js `0.0.0.0:3000` (firewalled) and FastAPI `127.0.0.1:8080` (`/api/*`) →
 PostgreSQL (localhost or private network only).
 
 Files: `deploy/digitalocean/` (`nginx-pontreol.conf`, `pontreol-api.service`,
-`pontreol-web.service`, `pontreol.env.example`, `gcs-cors.json`).
+`pontreol-web.service`, `pontreol.env.example`).
 
 ## 1. One-time server setup (Ubuntu 22.04/24.04)
 
@@ -35,7 +35,6 @@ sudo ufw enable
 sudo mkdir -p /etc/pontreol
 sudo cp deploy/digitalocean/pontreol.env.example /etc/pontreol/pontreol.env
 sudoedit /etc/pontreol/pontreol.env          # fill real values; never commit
-sudo cp <service-account>.json /etc/pontreol/gcs-service-account.json
 sudo chown root:pontreol /etc/pontreol/*  && sudo chmod 640 /etc/pontreol/*
 ```
 
@@ -44,13 +43,9 @@ External configuration:
 - **Sign-in:** email one-time codes sent through Resend; verify the `pontreol.com`
   domain in Resend and set `RESEND_API_KEY` (see docs/authentication.md).
 - **Razorpay:** set the webhook to `https://pontreol.com/api/billing/webhook`.
-- **GCS:** create the bucket, grant the service account `roles/storage.objectAdmin`,
-  and allow browser uploads with
-  `gcloud storage buckets update gs://$BUCKET --cors-file=deploy/digitalocean/gcs-cors.json`.
-  To keep photos uploaded on Replit, copy the objects with the same keys (the
-  database stores the key, which includes `PRIVATE_OBJECT_DIR`), for example
-  `gcloud storage rsync -r gs://<replit-bucket>/<dir> gs://$BUCKET/<dir>`, and
-  keep `PRIVATE_OBJECT_DIR` identical.
+- **Photos:** create a private DigitalOcean Space and access key (see
+  docs/deployment-app-platform.md), set `SPACES_*`, then run
+  `python python/configure_spaces.py` once.
 - **Resend:** verify the sender domain, then set `RESEND_API_KEY` and `RESEND_FROM`.
 
 ## 3. Deploy / update
@@ -119,5 +114,5 @@ them. To remove them anyway:
 |---|---|
 | PostgreSQL | API starts; `/api/healthz` 200, `/api/readyz` 503; data endpoints error; pool reconnects automatically (pre-ping) |
 | Resend (sign-in email) | Existing sessions keep working; new sign-ins show "couldn't send the email" until Resend recovers |
-| GCS | Uploads and `/api/media/*` return 503; photos show a placeholder; everything else works |
+| Spaces | Uploads and `/api/media/*` return 503; photos show a placeholder; everything else works |
 | Resend | Emails stay queued with retry (≤10 attempts); nothing else affected |

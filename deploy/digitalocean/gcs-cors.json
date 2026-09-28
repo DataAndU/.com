@@ -1,8 +1,0 @@
-[
-  {
-    "origin": ["https://pontreol.com"],
-    "method": ["PUT", "GET"],
-    "responseHeader": ["Content-Type"],
-    "maxAgeSeconds": 3600
-  }
-]

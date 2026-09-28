@@ -165,49 +165,122 @@ def test_liveness_independent_of_database_and_readiness_reports_outage(monkeypat
     assert client.get("/api/readyz").status_code == 503
 
 
-# --- Google Cloud credentials from environment (App Platform) ---------------
+# --- DigitalOcean Spaces photo storage ---------------------------------------------
 
-def test_gcs_credentials_from_env_json_and_base64(monkeypatch):
-    import base64
-    import json as jsonlib
-    key = {"type": "service_account", "private_key": "-----BEGIN PRIVATE KEY-----\nX\n",
-           "client_email": "svc@proj.iam.gserviceaccount.com", "project_id": "proj"}
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", jsonlib.dumps(key))
-    assert media_module._service_account_info() == key
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON",
-                       base64.b64encode(jsonlib.dumps(key).encode()).decode())
-    assert media_module._service_account_info() == key
-    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-    assert media_module._service_account_info() is None
+SPACES_ENV = {"SPACES_KEY": "DO00TESTKEY", "SPACES_SECRET": "spaces-secret-value",
+              "SPACES_BUCKET": "pontreol-media", "SPACES_REGION": "blr1",
+              "PRIVATE_OBJECT_DIR": "private"}
 
 
-@pytest.mark.parametrize("value", ["{not json", "!!!notbase64", '{"type": "authorized_user"}'])
-def test_invalid_gcs_credentials_fail_safely(monkeypatch, value, caplog):
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", value)
-    with pytest.raises(ValueError) as error:
-        media_module._service_account_info()
-    assert value not in str(error.value)
-    # Through the endpoint path: 503, logged without the secret value.
-    monkeypatch.setattr(media_module, "_storage_client", None)
-    monkeypatch.setenv("DEFAULT_OBJECT_STORAGE_BUCKET_ID", "b")
-    monkeypatch.setenv("PRIVATE_OBJECT_DIR", "private")
-    with pytest.raises(HTTPException) as unavailable:
+@pytest.fixture
+def spaces_env(monkeypatch):
+    for key, value in SPACES_ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(media_module, "_storage", None)
+    yield
+    media_module._storage = None
+
+
+def test_presigned_urls_target_the_private_space_and_bind_content_type(spaces_env):
+    from urllib.parse import parse_qs, urlparse
+    cloud, private_dir = media_module.bucket()
+    assert private_dir == "private"
+    put = cloud.blob("private/u1/listingPhoto/m1.jpg").generate_signed_url(
+        version="v4", expiration=timedelta(minutes=15), method="PUT", content_type="image/jpeg")
+    parsed = urlparse(put)
+    query = parse_qs(parsed.query)
+    assert parsed.scheme == "https" and parsed.netloc == "pontreol-media.blr1.digitaloceanspaces.com"
+    assert parsed.path == "/private/u1/listingPhoto/m1.jpg"
+    assert query["X-Amz-Algorithm"] == ["AWS4-HMAC-SHA256"] and query["X-Amz-Expires"] == ["900"]
+    assert "content-type" in query["X-Amz-SignedHeaders"][0]  # browser must send the same type
+    assert "blr1" in query["X-Amz-Credential"][0]
+    assert "spaces-secret-value" not in put                    # secret never in the URL
+    get = cloud.blob("private/u1/listingPhoto/m1.jpg").generate_signed_url(
+        expiration=timedelta(hours=1), method="GET")
+    assert parse_qs(urlparse(get).query)["X-Amz-Expires"] == ["3600"]
+
+
+@pytest.mark.parametrize("missing", ["SPACES_KEY", "SPACES_SECRET", "SPACES_BUCKET"])
+def test_missing_spaces_config_is_503_and_names_only(spaces_env, monkeypatch, caplog, missing):
+    monkeypatch.delenv(missing)
+    with pytest.raises(HTTPException) as error:
         media_module.bucket()
-    assert unavailable.value.status_code == 503
-    assert all(value not in record.getMessage() for record in caplog.records)
+    assert error.value.status_code == 503
+    logged = "\n".join(r.getMessage() for r in caplog.records)
+    assert missing in logged and "spaces-secret-value" not in logged and "DO00TESTKEY" not in logged
 
 
-def test_gcs_client_built_from_env_key(monkeypatch):
-    import json as jsonlib
-    captured = {}
+# Intercept the Spaces endpoint so tests never reach real DigitalOcean. moto
+# reads this when it is first imported, so it is set before that import.
+os.environ.setdefault("MOTO_S3_CUSTOM_ENDPOINTS", "https://blr1.digitaloceanspaces.com")
 
-    class FakeClient:
-        @classmethod
-        def from_service_account_info(cls, info):
-            captured["info"] = info
-            return cls()
-    key = {"type": "service_account", "private_key": "k", "client_email": "e", "project_id": "p"}
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", jsonlib.dumps(key))
-    monkeypatch.setattr(media_module, "_storage_client", None)
-    monkeypatch.setattr(media_module.storage, "Client", FakeClient)
-    assert isinstance(media_module._client(), FakeClient) and captured["info"] == key
+
+@pytest.fixture
+def s3(spaces_env, monkeypatch):
+    moto = pytest.importorskip("moto")
+    monkeypatch.setenv("SPACES_ADDRESSING_STYLE", "path")  # moto only intercepts path style
+    with moto.mock_aws():
+        import spaces
+        spaces.make_client().create_bucket(
+            Bucket="pontreol-media", CreateBucketConfiguration={"LocationConstraint": "blr1"})
+        yield spaces.make_client()
+
+
+def test_upload_finalize_and_serve_through_real_routes(s3, monkeypatch):
+    """request_upload -> browser PUT (simulated) -> finalize -> serve."""
+    from types import SimpleNamespace as NS
+    from media import UploadBody, finalize, request_upload
+    added = {}
+
+    class DB:
+        def add(self, obj): added["media"] = obj
+        def get(self, _model, key): return added["media"] if added["media"].id == key else None
+    user = NS(id="u1", is_admin=False)
+    ticket = request_upload(UploadBody(purpose="listingPhoto", fileName="a.jpg",
+                                       contentType="image/jpeg", sizeBytes=5), db=DB(), user=user)
+    assert ticket["requiredHeaders"] == {"Content-Type": "image/jpeg"}
+    assert ticket["objectPath"].startswith("private/u1/listingPhoto/")
+    # What the browser does with the presigned URL:
+    s3.put_object(Bucket="pontreol-media", Key=ticket["objectPath"], Body=b"12345",
+                  ContentType="image/jpeg")
+    result = finalize(ticket["mediaId"], db=DB(), user=user)
+    assert result["media"]["status"] == "ready" and result["media"]["url"] == f"/api/media/{ticket['mediaId']}"
+    media_module._signed_cache.clear()
+    response = media_module.serve(ticket["mediaId"], db=DB(), user=NS(id="viewer", is_admin=False))
+    assert response.status_code == 302
+    assert response.headers["location"].startswith("https://blr1.digitaloceanspaces.com/pontreol-media/private/")
+
+
+def test_finalize_rejects_mismatched_or_missing_object(s3):
+    from types import SimpleNamespace as NS
+    from media import UploadBody, finalize, request_upload
+    added = {}
+
+    class DB:
+        def add(self, obj): added["media"] = obj
+        def get(self, _model, key): return added["media"]
+    user = NS(id="u1", is_admin=False)
+    ticket = request_upload(UploadBody(purpose="listingPhoto", fileName="a.jpg",
+                                       contentType="image/jpeg", sizeBytes=5), db=DB(), user=user)
+    with pytest.raises(HTTPException) as missing:
+        finalize(ticket["mediaId"], db=DB(), user=user)
+    assert missing.value.status_code == 422                     # nothing uploaded yet
+    s3.put_object(Bucket="pontreol-media", Key=ticket["objectPath"], Body=b"much larger than declared",
+                  ContentType="image/jpeg")
+    with pytest.raises(HTTPException) as mismatch:
+        finalize(ticket["mediaId"], db=DB(), user=user)
+    assert mismatch.value.status_code == 422
+    listed = s3.list_objects_v2(Bucket="pontreol-media").get("KeyCount", 0)
+    assert listed == 0                                          # bad upload deleted
+    assert added["media"].status != "ready"
+
+
+def test_configure_spaces_sets_cors_and_reports_private(s3, monkeypatch, capsys):
+    import configure_spaces
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://pontreol.com,https://x.ondigitalocean.app")
+    assert configure_spaces.main() == 0
+    rules = s3.get_bucket_cors(Bucket="pontreol-media")["CORSRules"]
+    assert rules[0]["AllowedOrigins"] == ["https://pontreol.com", "https://x.ondigitalocean.app"]
+    assert set(rules[0]["AllowedMethods"]) == {"PUT", "GET", "HEAD"}
+    out = capsys.readouterr().out
+    assert "private" in out and "spaces-secret-value" not in out and "DO00TESTKEY" not in out
