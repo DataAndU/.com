@@ -31,7 +31,7 @@ Category `attributes` are exact camelCase objects:
 | Method/path | Request | Success response |
 |---|---|---|
 | `GET /me` | — | `User` for the current session |
-| `POST /auth/otp/request` | `{ email }` | `{ sent: true, expiresIn: 600, resendAfter: 60 }` (same for known and unknown emails); `429 rate_limited` + `Retry-After`; `503 email_send_failed`/`email_unavailable`; `422 invalid_email` |
+| `POST /auth/otp/request` | `{ email }` | `{ sent: true, expiresIn: 600, resendAfter: 60 }` (same for known and unknown emails); `429 rate_limited` + `Retry-After`; `424 email_send_failed`/`email_unavailable`; `422 invalid_email` |
 | `POST /auth/otp/verify` | `{ email, code, next? }` | `{ next }` + session cookie; `400 invalid_code`/`expired_code`/`too_many_attempts`; `403 suspended`; `409 account_conflict`; `429 rate_limited` |
 | `POST /auth/logout` | `{}` | `{ signedOut: true }`; revokes the server-side session |
 | `PUT /me/role` | `{ role: "buyer"|"provider" }` | `User`; first value is permanent; conflicting/repeated concurrent selection is `409` |

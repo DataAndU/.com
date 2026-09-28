@@ -210,7 +210,7 @@ def test_per_ip_request_limit(client, mailbox, maker):
 def test_resend_failure_is_graceful(client, mailbox, maker):
     mailbox.fail = outbox.EmailError("Email provider rejected the notification (HTTP 500)")
     response = request_code(client)
-    assert response.status_code == 503 and response.json()["detail"] == "email_send_failed"
+    assert response.status_code == 424 and response.json()["detail"] == "email_send_failed"
     with maker() as db:
         assert db.query(EmailOtpChallenge).count() == 0  # nothing usable left behind
     mailbox.fail = None
@@ -220,7 +220,7 @@ def test_resend_failure_is_graceful(client, mailbox, maker):
 def test_unexpected_transport_error_is_graceful(client, mailbox):
     mailbox.fail = RuntimeError("socket details that must not leak")
     response = request_code(client)
-    assert response.status_code == 503 and "socket" not in response.text
+    assert response.status_code == 424 and "socket" not in response.text
 
 
 def test_email_not_configured(client, monkeypatch):

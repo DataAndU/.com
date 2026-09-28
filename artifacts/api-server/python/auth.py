@@ -161,8 +161,10 @@ def request_code(body: OtpRequestBody, request: Request, db: Session = Depends(g
     _same_origin_mutation(request)
     email = normalize_email(body.email)
     sender = os.getenv("RESEND_FROM", "").strip()
+    # 424 (not 503): App Platform replaces 503 bodies with its own error page,
+    # which would hide this reason from the sign-in screen.
     if not sender or not os.getenv("RESEND_API_KEY", "").strip():
-        raise HTTPException(503, "email_unavailable")
+        raise HTTPException(424, "email_unavailable")
     now = utcnow()
     ip = client_ip_hash(request)
     db.execute(delete(EmailOtpChallenge).where(EmailOtpChallenge.created_at < now - RETENTION))
@@ -198,11 +200,11 @@ def request_code(body: OtpRequestBody, request: Request, db: Session = Depends(g
     except outbox.EmailError as exc:
         db.rollback()
         logger.warning("Sign-in code email failed: %s", exc)  # EmailError text is secret-free
-        raise HTTPException(503, "email_send_failed") from exc
+        raise HTTPException(424, "email_send_failed") from exc
     except Exception as exc:  # never leak transport details
         db.rollback()
         logger.warning("Sign-in code email failed: %s", type(exc).__name__)
-        raise HTTPException(503, "email_send_failed") from exc
+        raise HTTPException(424, "email_send_failed") from exc
     return {"sent": True, "expiresIn": int(OTP_TTL.total_seconds()),
             "resendAfter": int(RESEND_COOLDOWN.total_seconds())}
 
