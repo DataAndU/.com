@@ -154,6 +154,9 @@ class Booking(Base):
     quoted_price = Column(Float)
     buyer_completed_at = Column(DateTime(timezone=True))
     provider_completed_at = Column(DateTime(timezone=True))
+    # "Share my trip" (travel): hashed public token + expiry (migration 0008).
+    share_token_hash = Column(String(64), unique=True, index=True)
+    share_expires_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
 

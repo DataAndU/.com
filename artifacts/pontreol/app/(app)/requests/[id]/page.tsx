@@ -1,5 +1,6 @@
 "use client";
 
+import { ShareTrip } from "@/components/share-trip";
 import { useBooking, useUpdateBookingStatus, useQuoteBooking, useQuoteResponse, useCompleteBooking, useCreateReview } from "@/lib/api/bookings";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -93,6 +94,10 @@ export default function RequestDetailPage() {
                 {JSON.stringify(booking.details, null, 2)}
               </pre>
             </div>
+
+            {booking.category === "travel" && user?.id === booking.buyerId && !["declined", "cancelled"].includes(booking.status) && (
+              <ShareTrip bookingId={booking.id} />
+            )}
 
             {/* Delivery specific route map */}
             {booking.category === "delivery" && data.route && (

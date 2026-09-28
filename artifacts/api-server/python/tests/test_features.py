@@ -285,3 +285,64 @@ def test_banner_rejects_off_site_links(people, maker, link):
     body = {"message": "Hello", "linkPath": link, "startsAt": now.isoformat(),
             "endsAt": (now + timedelta(days=1)).isoformat()}
     assert people["prov2"].post("/api/admin/banners", json=body, headers=SAME).status_code == 422
+
+
+# --- Share my trip ---------------------------------------------------------------------
+
+@pytest.fixture
+def trip(people, maker):
+    from models import Booking
+    with maker() as db:
+        db.add(Listing(id="l-trip", provider_id="prov", category="travel", title="Blr to Mysore",
+                       description="Daily shared cab ride", price=500, pricing_mode="fixed",
+                       location_label="Bengaluru", latitude=12.97, longitude=77.59,
+                       attributes={"vehicleType": "Sedan", "seatingCapacity": 4, "withDriver": True,
+                                   "originLabel": "Bengaluru", "originLatitude": 12.97,
+                                   "originLongitude": 77.59, "destinationLabel": "Mysuru",
+                                   "destinationLatitude": 12.3, "destinationLongitude": 76.6,
+                                   "departureAt": "2030-01-01T08:00:00+05:30", "availableSeats": 3}))
+        db.add(Booking(id="b-trip", listing_id="l-trip", buyer_id="buyer", provider_id="prov",
+                       category="travel", status="confirmed", details={"seats": 2, "note": "private"}))
+        db.add(Booking(id="b-svc", listing_id="l-prov", buyer_id="buyer", provider_id="prov",
+                       category="services", status="requested", details={}))
+        db.execute(update(User).where(User.id == "prov").values(
+            display_name="Ravi Kumar", phone="+919999999999", verification_status="verified"))
+        db.commit()
+    return people
+
+
+def test_trip_share_link_is_public_minimal_and_revocable(trip, maker):
+    buyer = trip["buyer"]
+    created = buyer.post("/api/bookings/b-trip/share", headers=SAME)
+    assert created.status_code == 200
+    path = created.json()["path"]
+    assert path.startswith("/trip/")
+    anonymous = TestClient(app, base_url=ORIGIN)  # family member, not signed in
+    shared = anonymous.get(f"/api/trips/shared/{path.rsplit('/', 1)[1]}")
+    assert shared.status_code == 200 and shared.headers["cache-control"] == "no-store"
+    body = shared.json()
+    assert body["from"] == "Bengaluru" and body["to"] == "Mysuru" and body["status"] == "confirmed"
+    assert body["driverFirstName"] == "Ravi" and body["driverVerified"] is True and body["seats"] == 2
+    text = shared.text
+    assert "9999999999" not in text and "@example.com" not in text and "Kumar" not in text
+    assert "private" not in text and "b-trip" not in text and "prov" not in text
+    assert buyer.delete("/api/bookings/b-trip/share", headers=SAME).status_code == 204
+    assert anonymous.get(f"/api/trips/shared/{path.rsplit('/', 1)[1]}").status_code == 404
+
+
+def test_trip_share_rules(trip, maker):
+    from models import Booking
+    assert trip["prov"].post("/api/bookings/b-trip/share", headers=SAME).status_code == 404  # traveller only
+    assert trip["buyer"].post("/api/bookings/b-svc/share", headers=SAME).status_code == 422  # travel only
+    assert trip["buyer"].post("/api/bookings/b-trip/share").status_code == 403              # CSRF
+    first = trip["buyer"].post("/api/bookings/b-trip/share", headers=SAME).json()["path"].rsplit("/", 1)[1]
+    second = trip["buyer"].post("/api/bookings/b-trip/share", headers=SAME).json()["path"].rsplit("/", 1)[1]
+    anonymous = TestClient(app, base_url=ORIGIN)
+    assert anonymous.get(f"/api/trips/shared/{first}").status_code == 404   # replaced
+    assert anonymous.get(f"/api/trips/shared/{second}").status_code == 200
+    with maker() as db:
+        db.execute(update(Booking).where(Booking.id == "b-trip").values(
+            share_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1)))
+        db.commit()
+    assert anonymous.get(f"/api/trips/shared/{second}").status_code == 404  # expired
+    assert anonymous.get("/api/trips/shared/guess").status_code == 404
