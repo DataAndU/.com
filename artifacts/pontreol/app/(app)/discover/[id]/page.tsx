@@ -196,6 +196,7 @@ export default function ListingDetailPage() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Star className="w-4 h-4 fill-primary text-primary" />
                     <span>{listing.provider?.rating?.toFixed(1) || "New"} ({listing.provider?.reviewCount || 0} reviews)</span>
+                    {listing.provider?.availableNow && <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-400">● Available now</span>}
                   </div>
                 </div>
               </div>

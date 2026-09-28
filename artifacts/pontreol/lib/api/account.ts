@@ -36,6 +36,18 @@ export function useUpdateRole() {
   });
 }
 
+/** Provider "Available now" switch; the server turns it off after `hours`. */
+export function useSetAvailability() {
+  const queryClient = useQueryClient();
+  return useMutation<User, Error, { available: boolean; hours?: number }>({
+    mutationFn: (data) => fetchApi("/me/availability", { method: "PUT", body: JSON.stringify(data) }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(getMeQueryKey(), data);
+      queryClient.invalidateQueries({ queryKey: ["home-summary"] });
+    },
+  });
+}
+
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation<User, Error, { displayName?: string; phone?: string; contactEmailVisible?: boolean; contactPhoneVisible?: boolean }>({

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from common import listing_json, listings_json, owned
 from deps import current_user, get_db, require_role
-from models import GeocodeCache, Listing, ListingMedia, Media
+from models import GeocodeCache, Listing, ListingMedia, Media, User
 
 router = APIRouter()
 CATEGORIES = {"services", "spaces", "equipment", "delivery", "travel"}
@@ -245,12 +245,21 @@ def bounding_box(lat, lng, radius_km):
     return and_(*conditions)
 
 
-def map_pin_json(listing, distance):
-    """Compact projection for map pins (no provider/photo lookups, no description)."""
+def map_pin_json(listing, distance, available_now=False):
+    """Compact projection for map pins (no photo lookups, no description)."""
     return dict(id=listing.id, providerId=listing.provider_id, category=listing.category,
                 title=listing.title, price=listing.price, pricingMode=listing.pricing_mode,
                 currency=listing.currency, latitude=listing.latitude,
-                longitude=listing.longitude, status=listing.status, distanceKm=distance)
+                longitude=listing.longitude, status=listing.status, distanceKm=distance,
+                availableNow=available_now)
+
+
+def available_provider_ids(db, provider_ids):
+    """Which of these providers switched on "Available now" (one query)."""
+    if not provider_ids:
+        return set()
+    return set(db.scalars(select(User.id).where(
+        User.id.in_(provider_ids), User.available_until > datetime.now(timezone.utc))))
 
 
 @router.get("/home/summary")
@@ -283,8 +292,12 @@ def home(db: Session = Depends(get_db), user=Depends(current_user),
         # Without coordinates keep the historical oldest-first sample of 100.
         rows = db.scalars(stmt.order_by(Listing.created_at, Listing.id).limit(100))
         nearby = [(row, None) for row in rows]
-    listings = ([map_pin_json(row, distance) for row, distance in nearby] if view == "map"
-                else listings_json(db, nearby))
+    if view == "map":
+        available = available_provider_ids(db, {row.provider_id for row, _ in nearby})
+        listings = [map_pin_json(row, distance, row.provider_id in available)
+                    for row, distance in nearby]
+    else:
+        listings = listings_json(db, nearby)
     return {"totalListings": sum(counts.values()), "categories": categories,
             "nearbyListings": listings}
 

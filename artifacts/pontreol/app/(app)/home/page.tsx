@@ -32,6 +32,13 @@ export default function HomePage() {
   // Download the Leaflet chunk while the location permission is pending.
   useEffect(() => { void loadMapView(); }, []);
 
+  const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const availableCount = useMemo(
+    () => (summary?.nearbyListings || []).filter((listing) => listing.availableNow).length, [summary]);
+  const pins = useMemo(
+    () => (summary?.nearbyListings || []).filter((listing) => !onlyAvailable || listing.availableNow),
+    [summary, onlyAvailable]);
+
   const nearbyCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const listing of summary?.nearbyListings || []) counts[listing.category] = (counts[listing.category] || 0) + 1;
@@ -94,6 +101,13 @@ export default function HomePage() {
                 : <>What do you need nearby today?</>}
             </div>
             <div className="flex flex-wrap gap-2">
+              {availableCount > 0 && (
+                <button type="button" onClick={() => setOnlyAvailable(!onlyAvailable)} aria-pressed={onlyAvailable}
+                  className={`px-2 py-0.5 rounded font-semibold ${onlyAvailable ? "bg-green-500 text-white" : "bg-green-500/15 text-green-400"}`}
+                  data-testid="filter-available-now">
+                  ● Available now {availableCount}
+                </button>
+              )}
               {summary.categories.map(c => (
                 <span key={c.category} className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded uppercase font-semibold">
                   {c.category} {nearbyCounts[c.category] || 0}
@@ -111,7 +125,7 @@ export default function HomePage() {
         {location.status === "locating" ? (
           <MapPlaceholder />
         ) : coords ? (
-          <MapView listings={summary?.nearbyListings || []} center={[coords.lat, coords.lng]} />
+          <MapView listings={pins} center={[coords.lat, coords.lng]} />
         ) : (
           <MapView listings={[]} center={OVERVIEW_CENTER} zoom={OVERVIEW_ZOOM} />
         )}

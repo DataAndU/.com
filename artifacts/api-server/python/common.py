@@ -1,4 +1,4 @@
-from datetime import timezone
+from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from models import ListingMedia, Media, User
@@ -13,6 +13,15 @@ def iso(value):
     return value.isoformat()
 
 
+def is_available(user, at=None):
+    until = getattr(user, "available_until", None)
+    if until is None:
+        return False
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    return until > (at or datetime.now(timezone.utc))
+
+
 def user_json(user):
     return dict(id=user.id, email=user.email,
                 displayName=user.display_name, avatarUrl=user.avatar_url, role=user.role,
@@ -20,13 +29,14 @@ def user_json(user):
                 rating=user.rating, reviewCount=user.review_count,
                 contactEmailVisible=user.contact_email_visible,
                 contactPhoneVisible=user.contact_phone_visible, phone=user.phone,
+                availableNow=is_available(user), availableUntil=iso(user.available_until),
                 createdAt=iso(user.created_at))
 
 
 def provider_json(user, reveal=False):
     return dict(id=user.id, displayName=user.display_name, avatarUrl=user.avatar_url,
                 verificationStatus=user.verification_status, rating=user.rating,
-                reviewCount=user.review_count,
+                reviewCount=user.review_count, availableNow=is_available(user),
                 contactEmail=user.email if reveal and user.contact_email_visible else None,
                 contactPhone=user.phone if reveal and user.contact_phone_visible else None)
 

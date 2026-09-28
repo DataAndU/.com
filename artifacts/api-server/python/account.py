@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from common import provider_json, user_json
-from deps import current_user, get_db
+from deps import current_user, get_db, require_role
 from models import Listing, Review, User
 
 router = APIRouter()
@@ -38,6 +39,21 @@ def set_role(body: RoleBody, db: Session = Depends(get_db), user=Depends(current
     locked.role = body.role
     db.flush()
     return user_json(locked)
+
+
+class AvailabilityBody(BaseModel):
+    available: bool
+    hours: int = Field(4, ge=1, le=12)
+
+
+@router.put("/me/availability")
+def set_availability(body: AvailabilityBody, db: Session = Depends(get_db),
+                     user=Depends(require_role("provider"))):
+    """Provider "Available now" switch. Turns itself off after `hours`."""
+    user.available_until = (datetime.now(timezone.utc) + timedelta(hours=body.hours)
+                            if body.available else None)
+    db.flush()
+    return user_json(user)
 
 
 @router.patch("/me")

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchApi, Listing, Page, Media } from "./client";
 
 /** Compact listing projection returned by `/home/summary?view=map`. */
-export type MapPin = Pick<Listing, "id" | "providerId" | "category" | "title" | "price" | "pricingMode" | "currency" | "latitude" | "longitude" | "status" | "distanceKm">;
+export type MapPin = Pick<Listing, "id" | "providerId" | "category" | "title" | "price" | "pricingMode" | "currency" | "latitude" | "longitude" | "status" | "distanceKm"> & { availableNow?: boolean };
 
 export type HomeSummary = { totalListings: number; categories: { category: string; count: number }[]; nearbyListings: MapPin[] };
 

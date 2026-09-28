@@ -132,10 +132,11 @@ def test_home_summary_map_view_is_compact_and_skips_joins(db, engine, city):
     with queries(engine) as sql:
         result = home(db=db, user=SimpleNamespace(id="buyer"), lat=lat, lng=lng,
                       distanceKm=10, view="map")
-    assert len(sql) == 2  # no provider or photo lookups for map pins
+    # counts + candidates + one "available now" lookup; still no photo/provider rows
+    assert len(sql) == 3
     pin = result["nearbyListings"][0]
     assert set(pin) == {"id", "providerId", "category", "title", "price", "pricingMode",
-                        "currency", "latitude", "longitude", "status", "distanceKm"}
+                        "currency", "latitude", "longitude", "status", "distanceKm", "availableNow"}
     assert "description" not in pin
 
 

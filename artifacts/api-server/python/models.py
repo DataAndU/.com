@@ -37,6 +37,8 @@ class User(Base):
     contact_phone_visible = Column(Boolean, nullable=False, default=False)
     verification_status = Column(String(20), nullable=False, default="notStarted")
     rating = Column(Float, nullable=False, default=0)
+    # Provider "Available now" switch; expires automatically (migration 0004).
+    available_until = Column(DateTime(timezone=True))
     review_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)

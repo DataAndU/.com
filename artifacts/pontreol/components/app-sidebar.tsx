@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { AccountMenu } from "@/components/account-menu";
+import { AvailabilityToggle } from "@/components/availability-toggle";
 
 import { useMe } from "@/lib/api/account";
 
@@ -67,6 +68,7 @@ export function AppSidebar() {
         </div>
 
         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+          <AvailabilityToggle />
           {routes.map((route) => {
             if (route.adminOnly && !user?.isAdmin) return null;
             if (route.providerOnly && user?.role !== "provider") return null;

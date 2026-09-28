@@ -43,6 +43,8 @@ export type User = {
   contactEmailVisible: boolean;
   contactPhoneVisible: boolean;
   phone: string | null;
+  availableNow?: boolean;
+  availableUntil?: string | null;
   createdAt: string;
 };
 
@@ -53,6 +55,7 @@ export type ProviderSummary = {
   verificationStatus: string;
   rating: number;
   reviewCount: number;
+  availableNow?: boolean;
   contactEmail: string | null;
   contactPhone: string | null;
 };

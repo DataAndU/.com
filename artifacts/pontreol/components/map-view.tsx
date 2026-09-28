@@ -19,6 +19,15 @@ const listingPin = L.divIcon({
   popupAnchor: [0, -42],
 });
 
+// Bright green pin with a soft halo for providers who are "Available now".
+const availablePin = L.divIcon({
+  className: "",
+  html: '<svg width="44" height="48" viewBox="0 0 44 48" aria-hidden="true"><circle cx="22" cy="18" r="17" fill="#22c55e" opacity="0.25"/><path d="M22 45C18 39 6 27 6 18a16 16 0 1 1 32 0c0 9-12 21-16 27Z" fill="#22c55e" stroke="white" stroke-width="3"/><circle cx="22" cy="18" r="6" fill="white"/></svg>',
+  iconSize: [44, 48],
+  iconAnchor: [22, 46],
+  popupAnchor: [0, -42],
+});
+
 function MapUpdater({ center, zoom, listings }: { center: [number, number]; zoom: number; listings: MapPin[] }) {
   const map = useMap();
   const [lat, lng] = center;
@@ -58,12 +67,13 @@ export default function MapView({ listings, center, zoom = 13 }: { listings: Map
           <Marker 
             key={listing.id} 
             position={[listing.latitude, listing.longitude]}
-            icon={listingPin}
+            icon={listing.availableNow ? availablePin : listingPin}
             title={listing.title}
             alt={`Listing: ${listing.title}`}
           >
             <Popup>
               <div className="min-w-44 text-slate-900">
+                {listing.availableNow && <span className="mb-1 inline-block rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">● Available now</span>}
                 <strong className="block mb-1">{listing.title}</strong>
                 <div className="text-sm">₹{listing.price} {listing.pricingMode === "negotiable" && "(Negotiable)"}</div>
                 <div className="text-xs text-slate-600 mt-1 capitalize">{listing.category}</div>
