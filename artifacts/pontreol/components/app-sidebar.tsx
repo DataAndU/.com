@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   Bell,
-  Grid
+  Grid,
+  QrCode
 } from "lucide-react";
 import { useState } from "react";
 import { AccountMenu } from "@/components/account-menu";
@@ -31,6 +32,7 @@ const routes = [
   { name: "Requests", path: "/requests", icon: Inbox },
   { name: "Messages", path: "/messages", icon: MessageSquare },
   { name: "Notifications", path: "/notifications", icon: Bell },
+  { name: "Poster", path: "/poster", icon: QrCode },
   { name: "Settings", path: "/settings", icon: Settings },
   { name: "Billing", path: "/billing", icon: CreditCard },
   { name: "Admin", path: "/admin", icon: ShieldAlert, adminOnly: true },
