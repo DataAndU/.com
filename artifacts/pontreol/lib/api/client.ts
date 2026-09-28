@@ -45,6 +45,7 @@ export type User = {
   phone: string | null;
   availableNow?: boolean;
   availableUntil?: string | null;
+  badges?: string[];
   createdAt: string;
 };
 
@@ -56,6 +57,7 @@ export type ProviderSummary = {
   rating: number;
   reviewCount: number;
   availableNow?: boolean;
+  badges?: string[];
   contactEmail: string | null;
   contactPhone: string | null;
 };

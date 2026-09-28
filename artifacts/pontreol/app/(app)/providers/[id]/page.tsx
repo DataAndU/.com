@@ -1,6 +1,7 @@
 "use client";
 
 import { ListingPhoto } from "@/components/listing-photo";
+import { ProviderBadges } from "@/components/provider-badges";
 import { useProvider } from "@/lib/api/account";
 import { ArrowLeft, Star, MapPin, CheckCircle2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -39,8 +40,10 @@ export default function ProviderProfilePage() {
                   <Star className="w-4 h-4 fill-primary text-primary" />
                   <span className="font-medium text-foreground">{provider.rating.toFixed(1)}</span>
                   <span>({provider.reviewCount} reviews)</span>
+              {provider.availableNow && <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-400">● Available now</span>}
                 </div>
               </div>
+              <div className="mt-3 flex justify-center md:justify-start"><ProviderBadges badges={provider.badges} /></div>
 
               {(provider.contactEmail || provider.contactPhone) && (
                 <div className="mt-4 p-4 bg-background border border-border rounded-lg inline-block text-left">

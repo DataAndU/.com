@@ -96,3 +96,101 @@ def test_available_now_is_provider_only_and_csrf_protected(people):
     assert people["prov"].put("/api/me/availability", json={"available": True}).status_code == 403
     assert people["prov"].put("/api/me/availability", json={"available": True, "hours": 99},
                               headers=SAME).status_code == 422
+
+
+# --- Badges -------------------------------------------------------------------------
+
+def badges_of(client, listing_id="l-prov"):
+    return client.get(f"/api/listings/{listing_id}").json()["provider"]["badges"]
+
+
+def test_verified_badge_follows_verification_status(people, maker):
+    assert "verified" not in badges_of(people["buyer"])
+    with maker() as db:
+        db.execute(update(User).where(User.id == "prov").values(verification_status="verified"))
+        db.commit()
+    assert "verified" in badges_of(people["buyer"])
+
+
+def test_founding_badge_only_for_first_providers(maker, monkeypatch):
+    import common
+    monkeypatch.setattr(common, "FOUNDING_PROVIDER_LIMIT", 2)
+    import account
+    monkeypatch.setattr(account, "FOUNDING_PROVIDER_LIMIT", 2)
+
+    def test_db():
+        session = maker()
+        try:
+            yield session
+            session.commit()
+        finally:
+            session.close()
+    app.dependency_overrides[deps.get_db] = test_db
+    try:
+        results = []
+        for i in range(3):
+            with maker() as db:
+                db.add(User(id=f"u{i}", email=f"u{i}@example.com", display_name=f"u{i}"))
+                db.flush()
+                token = auth.create_session(db, f"u{i}")
+                db.commit()
+            client = TestClient(app, base_url=ORIGIN)
+            client.cookies.set(auth.session_cookie_name(), token)
+            results.append(client.put("/api/me/role", json={"role": "provider"}, headers=SAME).json())
+        assert ["founding" in r["badges"] for r in results] == [True, True, False]
+        # A buyer never becomes a founding provider.
+        with maker() as db:
+            db.add(User(id="b9", email="b9@example.com", display_name="b9"))
+            db.flush()
+            token = auth.create_session(db, "b9")
+            db.commit()
+        buyer = TestClient(app, base_url=ORIGIN)
+        buyer.cookies.set(auth.session_cookie_name(), token)
+        assert "founding" not in buyer.put("/api/me/role", json={"role": "buyer"}, headers=SAME).json()["badges"]
+    finally:
+        app.dependency_overrides.pop(deps.get_db, None)
+
+
+def converse(people, maker, delays_minutes):
+    """Buyer writes, provider replies; each buyer message is back-dated."""
+    from models import Message
+    buyer, prov = people["buyer"], people["prov"]
+    first = buyer.post("/api/conversations", json={"listingId": "l-prov", "providerId": "prov",
+                                                   "initialMessage": "Is this available?"}, headers=SAME)
+    assert first.status_code == 201, first.text
+    convo_id = first.json()["conversation"]["id"]
+    for i, delay in enumerate(delays_minutes):
+        if i:
+            buyer.post(f"/api/conversations/{convo_id}/messages", json={"text": f"Follow-up {i}"}, headers=SAME)
+        with maker() as db:  # shift the whole history back: buyer's latest message is `delay` old
+            for message in db.query(Message).filter(Message.conversation_id == convo_id):
+                created = message.created_at if message.created_at.tzinfo else message.created_at.replace(tzinfo=timezone.utc)
+                message.created_at = created - timedelta(minutes=delay)
+            db.commit()
+        assert prov.post(f"/api/conversations/{convo_id}/messages", json={"text": "Yes!"},
+                         headers=SAME).status_code == 201
+
+
+def test_fast_responder_badge(people, maker):
+    converse(people, maker, [5, 10])
+    assert "fastResponder" not in badges_of(people["buyer"])  # needs 3 replies
+    with maker() as db:
+        assert db.get(User, "prov").response_samples == 2
+    converse(people, maker, [15])  # same listing reuses the conversation: a 3rd reply
+    with maker() as db:
+        provider = db.get(User, "prov")
+        assert provider.response_samples == 3 and 5 <= provider.avg_response_minutes <= 15
+    assert "fastResponder" in badges_of(people["buyer"])
+
+
+def test_slow_replies_do_not_earn_badge_and_provider_double_messages_ignored(people, maker):
+    converse(people, maker, [180, 240, 300])
+    assert "fastResponder" not in badges_of(people["buyer"])
+    with maker() as db:
+        samples = db.get(User, "prov").response_samples
+    from models import Conversation
+    with maker() as db:
+        convo_id = db.query(Conversation).first().id
+    people["prov"].post(f"/api/conversations/{convo_id}/messages", json={"text": "Also..."}, headers=SAME)
+    with maker() as db:
+        assert db.get(User, "prov").response_samples == samples  # not a reply to the buyer

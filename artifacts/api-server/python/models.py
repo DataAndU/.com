@@ -39,6 +39,10 @@ class User(Base):
     rating = Column(Float, nullable=False, default=0)
     # Provider "Available now" switch; expires automatically (migration 0004).
     available_until = Column(DateTime(timezone=True))
+    # Badges (migration 0005): first providers, and reply speed to buyers.
+    founding_provider = Column(Boolean, nullable=False, default=False, server_default="false")
+    avg_response_minutes = Column(Float)
+    response_samples = Column(Integer, nullable=False, default=0, server_default="0")
     review_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)

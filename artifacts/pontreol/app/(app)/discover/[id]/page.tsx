@@ -9,6 +9,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { MapPin, MessageSquare, Star, ArrowLeft } from "lucide-react";
 import { ShareListing } from "@/components/share-listing";
+import { ProviderBadges } from "@/components/provider-badges";
 
 export default function ListingDetailPage() {
   // Next 16 passes `params` to pages as a Promise; read route params via the hook.
@@ -197,6 +198,9 @@ export default function ListingDetailPage() {
                     <Star className="w-4 h-4 fill-primary text-primary" />
                     <span>{listing.provider?.rating?.toFixed(1) || "New"} ({listing.provider?.reviewCount || 0} reviews)</span>
                     {listing.provider?.availableNow && <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-400">● Available now</span>}
+                  </div>
+                  <div className="mt-1.5">
+                    <ProviderBadges badges={listing.provider?.badges} />
                   </div>
                 </div>
               </div>

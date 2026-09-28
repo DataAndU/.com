@@ -3,10 +3,10 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from common import provider_json, user_json
+from common import FOUNDING_PROVIDER_LIMIT, provider_json, user_json
 from deps import current_user, get_db, require_role
 from models import Listing, Review, User
 
@@ -36,6 +36,10 @@ def set_role(body: RoleBody, db: Session = Depends(get_db), user=Depends(current
         if locked.role == body.role:
             return user_json(locked)
         raise HTTPException(409, "Marketplace role is permanent")
+    if body.role == "provider":
+        # Count before assigning the role so this user is not counted yet.
+        providers = db.scalar(select(func.count()).select_from(User).where(User.role == "provider"))
+        locked.founding_provider = providers < FOUNDING_PROVIDER_LIMIT
     locked.role = body.role
     db.flush()
     return user_json(locked)

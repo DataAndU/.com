@@ -92,6 +92,24 @@ def message_json(m):
                 text=m.text, createdAt=iso(m.created_at))
 
 
+def record_provider_reply(db, convo, provider):
+    """Update the provider's average reply time when they answer a buyer's
+    latest message (feeds the "Fast responder" badge)."""
+    last = db.scalar(select(Message).where(Message.conversation_id == convo.id).order_by(
+        Message.created_at.desc(), Message.id.desc()).limit(1))
+    if last is None or last.sender_id != convo.buyer_id:
+        return
+    sent = last.created_at if last.created_at.tzinfo else last.created_at.replace(tzinfo=timezone.utc)
+    minutes = max(0.0, (datetime.now(timezone.utc) - sent).total_seconds() / 60)
+    minutes = min(minutes, 24 * 60)  # one slow day should not dominate forever
+    samples = provider.response_samples or 0
+    previous = provider.avg_response_minutes
+    # Running average over the last ~20 replies.
+    weight = 1 / min(samples + 1, 20)
+    provider.avg_response_minutes = minutes if previous is None else previous + (minutes - previous) * weight
+    provider.response_samples = samples + 1
+
+
 @router.post("/conversations", status_code=201)
 def create_conversation(body: ConversationBody, db: Session = Depends(get_db), user=Depends(require_role("buyer"))):
     listing = db.scalar(select(Listing).where(Listing.id == body.listingId).with_for_update())
@@ -146,6 +164,8 @@ class MessageBody(BaseModel):
 def send_message(conversation_id: str, body: MessageBody,
                  db: Session = Depends(get_db), user=Depends(current_user)):
     convo = get_convo(db, conversation_id, user)
+    if user.id == convo.provider_id:
+        record_provider_reply(db, convo, user)
     message = Message(conversation_id=convo.id, sender_id=user.id, text=body.text)
     db.add(message); convo.last_message_at = datetime.now(timezone.utc); db.flush()
     other = convo.provider_id if user.id == convo.buyer_id else convo.buyer_id

@@ -22,6 +22,25 @@ def is_available(user, at=None):
     return until > (at or datetime.now(timezone.utc))
 
 
+FOUNDING_PROVIDER_LIMIT = 100
+FAST_RESPONSE_MINUTES = 30
+FAST_RESPONSE_MIN_SAMPLES = 3
+
+
+def badges(user):
+    """Public trust badges, all derived from server-side data."""
+    result = []
+    if getattr(user, "verification_status", None) == "verified":
+        result.append("verified")
+    if ((getattr(user, "response_samples", 0) or 0) >= FAST_RESPONSE_MIN_SAMPLES
+            and getattr(user, "avg_response_minutes", None) is not None
+            and user.avg_response_minutes <= FAST_RESPONSE_MINUTES):
+        result.append("fastResponder")
+    if getattr(user, "founding_provider", False):
+        result.append("founding")
+    return result
+
+
 def user_json(user):
     return dict(id=user.id, email=user.email,
                 displayName=user.display_name, avatarUrl=user.avatar_url, role=user.role,
@@ -30,6 +49,7 @@ def user_json(user):
                 contactEmailVisible=user.contact_email_visible,
                 contactPhoneVisible=user.contact_phone_visible, phone=user.phone,
                 availableNow=is_available(user), availableUntil=iso(user.available_until),
+                badges=badges(user),
                 createdAt=iso(user.created_at))
 
 
@@ -37,6 +57,7 @@ def provider_json(user, reveal=False):
     return dict(id=user.id, displayName=user.display_name, avatarUrl=user.avatar_url,
                 verificationStatus=user.verification_status, rating=user.rating,
                 reviewCount=user.review_count, availableNow=is_available(user),
+                badges=badges(user),
                 contactEmail=user.email if reveal and user.contact_email_visible else None,
                 contactPhone=user.phone if reveal and user.contact_phone_visible else None)
 
