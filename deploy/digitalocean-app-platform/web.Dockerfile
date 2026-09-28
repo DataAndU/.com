@@ -13,14 +13,13 @@ RUN pnpm install --frozen-lockfile --filter "@workspace/pontreol..."
 
 COPY artifacts/pontreol ./artifacts/pontreol
 
-# App Platform passes BUILD_TIME / RUN_AND_BUILD_TIME variables as build args.
-# The Clerk publishable key is public and must be inlined into browser JS.
+# Clerk's publishable key is NOT required at build time: the root layout and
+# middleware read CLERK_PUBLISHABLE_KEY at request time and hand it to the
+# browser. If App Platform does pass it (build args), it is simply inlined too.
 ARG CLERK_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ARG CLERK_PROXY_URL
 ARG NEXT_PUBLIC_CLERK_PROXY_URL
-RUN test -n "${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}${CLERK_PUBLISHABLE_KEY}" \
-      || (echo "Set CLERK_PUBLISHABLE_KEY (scope: build + run) in App Platform" >&2; exit 1)
 RUN NODE_ENV=production pnpm --filter @workspace/pontreol run build
 
 FROM node:24-bookworm-slim

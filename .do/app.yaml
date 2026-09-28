@@ -55,7 +55,7 @@ services:
       - key: ALLOWED_ORIGINS
         value: https://pontreol.com,${APP_URL}
         scope: RUN_TIME
-      # Public key (pk_live_...). Needed at BUILD time: it is inlined into browser JS.
+      # Public key (pk_live_...). Read at run time; build does not depend on it.
       - key: CLERK_PUBLISHABLE_KEY
         scope: RUN_AND_BUILD_TIME
       - key: CLERK_SECRET_KEY

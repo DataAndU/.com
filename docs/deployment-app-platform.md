@@ -63,7 +63,7 @@ The migration's indexes can stay in place; older code ignores them.
 |---|---|---|---|---|
 | `NODE_ENV=production` | ✓ | ✓ | no | fixed in spec |
 | `ALLOWED_ORIGINS` | ✓ | ✓ | no | `https://pontreol.com` (+ app URL); trusted host, CORS/CSRF, Clerk `azp` |
-| `CLERK_PUBLISHABLE_KEY` | ✓ build+run | ✓ | no | `pk_live_…`; `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is derived from it at build (`next.config.mjs`) |
+| `CLERK_PUBLISHABLE_KEY` | ✓ | ✓ | no | `pk_live_…`; read at run time by the layout/middleware (the build does not need it) |
 | `CLERK_SECRET_KEY` | ✓ | ✓ | **yes** | `sk_live_…`; web: session middleware; api: first-login profile sync |
 | `DATABASE_URL` | | ✓ | **yes** | DigitalOcean **direct** connection string (port 25060, `sslmode=require`), not a PgBouncer pool |
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, `DB_POOL_RECYCLE`, `DB_CONNECT_TIMEOUT` | | ✓ | no | fixed defaults in spec |
