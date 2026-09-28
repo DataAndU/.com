@@ -1,7 +1,9 @@
-"""Apply the additive SQL migrations in ../migrations to DATABASE_URL.
+"""Set up / upgrade the database schema at DATABASE_URL. Safe to re-run.
 
-Safe to re-run: every statement is `CREATE INDEX CONCURRENTLY IF NOT EXISTS`
-or `ANALYZE`. Statements run in autocommit mode (CONCURRENTLY requires it).
+1. Creates any tables that do not exist yet (a new, empty database gets the
+   full schema). Existing tables are never altered, emptied or dropped.
+2. Applies the additive SQL migrations in ../migrations in autocommit mode
+   (CREATE ... IF NOT EXISTS, ADD COLUMN IF NOT EXISTS, ANALYZE).
 Refuses destructive statements (DROP/TRUNCATE/DELETE/UPDATE/RENAME and any
 ALTER other than ADD COLUMN IF NOT EXISTS or DROP NOT NULL).
 
@@ -47,7 +49,28 @@ def database_url():
         "postgres://", "postgresql://", 1)
 
 
+def create_missing_tables():
+    """Create tables that do not exist yet (a brand-new database gets the full
+    schema). Existing tables are never altered, emptied or dropped:
+    SQLAlchemy's create_all only issues CREATE for absent tables/indexes."""
+    from sqlalchemy import create_engine, inspect
+
+    import billing_models  # noqa: F401  (registers billing tables)
+    import models
+
+    url = database_url().replace("postgresql://", "postgresql+psycopg://", 1)
+    engine = create_engine(url)
+    try:
+        before = set(inspect(engine).get_table_names())
+        models.Base.metadata.create_all(engine, checkfirst=True)
+        created = sorted(set(inspect(engine).get_table_names()) - before)
+    finally:
+        engine.dispose()
+    print(f"created {len(created)} missing tables" + (f": {', '.join(created)}" if created else ""))
+
+
 def main():
+    create_missing_tables()
     files = sorted(MIGRATIONS.glob("*.sql"))
     plan = [(path, statements(path.read_text())) for path in files]
     for path, stmts in plan:

@@ -32,9 +32,9 @@ App → **Console** tab → component **api** → run
 python python/apply_migrations.py
 ```
 
-It only creates three indexes (`CREATE INDEX CONCURRENTLY IF NOT EXISTS`) and
-runs `ANALYZE`. It refuses any file containing DROP/TRUNCATE/DELETE/ALTER/UPDATE,
-detects interrupted builds, and is safe to run again.
+On a new, empty database it creates every table. On an existing one it only adds
+what is missing. It never alters, empties or deletes existing tables, refuses
+destructive SQL, detects interrupted index builds, and is safe to run again.
 
 ## Photo storage: DigitalOcean Spaces
 
@@ -89,11 +89,11 @@ Not needed: any `CLERK_*` or `GOOGLE_CLIENT_*` variable (sign-in is email OTP; s
 docs/authentication.md), any `GOOGLE_*` variable (photos moved to Spaces), `REPLIT_*`, and
 `RAZORPAY_TEST_*` (live mode ignores them).
 
-### Database: copy, don't start empty
+### Database
 
-Production never creates tables at startup, so a brand-new database has no
-schema. Copy the existing (Replit) database into DigitalOcean Managed
-PostgreSQL once. The copy is read-only on the source:
+A new DigitalOcean database needs only `python python/apply_migrations.py` (it
+creates the full schema). To bring over data from an older database instead, copy it
+first (read-only on the source), then run the same command:
 
 ```
 pg_dump "$OLD_DATABASE_URL" --format=custom --no-owner --no-privileges -f pontreol.dump
