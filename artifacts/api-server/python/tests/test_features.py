@@ -251,3 +251,37 @@ def test_admin_referral_report_is_admin_only(people, maker):
         db.commit()
     items = people["buyer"].get("/api/admin/referrals").json()["items"]
     assert [(i["id"], i["creditMonths"]) for i in items] == [("prov", 2)]
+
+
+# --- Seasonal banner -----------------------------------------------------------------
+
+def test_banner_admin_create_and_time_window(people, maker):
+    admin, buyer = people["prov2"], people["buyer"]
+    with maker() as db:
+        db.execute(update(User).where(User.id == "prov2").values(is_admin=True))
+        db.commit()
+    now = datetime.now(timezone.utc)
+    body = {"message": "Diwali: rent party lights & speakers nearby!", "linkPath": "/categories/equipment",
+            "startsAt": (now - timedelta(hours=1)).isoformat(), "endsAt": (now + timedelta(days=3)).isoformat()}
+    assert buyer.post("/api/admin/banners", json=body, headers=SAME).status_code == 403
+    created = admin.post("/api/admin/banners", json=body, headers=SAME)
+    assert created.status_code == 201
+    shown = buyer.get("/api/banner").json()["banner"]
+    assert shown["message"].startswith("Diwali") and shown["linkPath"] == "/categories/equipment"
+    future = dict(body, startsAt=(now + timedelta(days=1)).isoformat())
+    admin.put(f"/api/admin/banners/{created.json()['id']}", json=future, headers=SAME)
+    assert buyer.get("/api/banner").json()["banner"] is None  # not started yet
+    off = dict(body, active=False)
+    admin.put(f"/api/admin/banners/{created.json()['id']}", json=off, headers=SAME)
+    assert buyer.get("/api/banner").json()["banner"] is None
+
+
+@pytest.mark.parametrize("link", ["https://evil.example", "//evil.example", "/\\\\evil.example", "javascript:alert(1)"])
+def test_banner_rejects_off_site_links(people, maker, link):
+    with maker() as db:
+        db.execute(update(User).where(User.id == "prov2").values(is_admin=True))
+        db.commit()
+    now = datetime.now(timezone.utc)
+    body = {"message": "Hello", "linkPath": link, "startsAt": now.isoformat(),
+            "endsAt": (now + timedelta(days=1)).isoformat()}
+    assert people["prov2"].post("/api/admin/banners", json=body, headers=SAME).status_code == 422

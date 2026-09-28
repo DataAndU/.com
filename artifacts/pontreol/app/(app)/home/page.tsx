@@ -3,6 +3,7 @@
 import { useHomeSummary } from "@/lib/api/listings";
 import { fetchApi } from "@/lib/api/client";
 import { useUserLocation } from "@/lib/geolocation";
+import { HomeBanner } from "@/components/home-banner";
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Navigation, Search } from "lucide-react";
@@ -76,6 +77,7 @@ export default function HomePage() {
     <div className="flex flex-col h-full min-h-0 overflow-hidden relative">
       {/* Keep controls outside Leaflet's layers and below the mobile navigation. */}
       <div className="shrink-0 w-full p-3 border-b border-border bg-background">
+        <HomeBanner />
         <form onSubmit={handleManualSearch} className="bg-card border border-border shadow-xl rounded-xl flex items-center p-2 gap-2">
           <button type="button" onClick={() => { setSearchError(""); locate(); }} className="p-2 text-primary hover:bg-white/5 rounded-lg" title="Use GPS" aria-label="Use my current location">
             <Navigation className="w-5 h-5" />

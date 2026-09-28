@@ -252,6 +252,18 @@ class NotificationOutbox(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
 
 
+class SiteBanner(Base):
+    """Admin-managed announcement shown on the home map (migration 0007)."""
+    __tablename__ = "site_banners"
+    id = Column(String(36), primary_key=True, default=uid)
+    message = Column(String(200), nullable=False)
+    link_path = Column(String(200))
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
+
 class GeocodeCache(Base):
     __tablename__ = "geocode_cache"
     query = Column(String(200), primary_key=True)

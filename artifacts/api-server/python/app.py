@@ -19,6 +19,7 @@ from verification import router as verification_router
 from observability import TimingMiddleware
 from outbox import run_worker
 from referrals import router as referrals_router
+from banners import router as banners_router
 
 @asynccontextmanager
 async def lifespan(app):
@@ -68,5 +69,5 @@ def ready():
 
 for router in (auth_router, account_router, listings_router, media_router, availability_router,
                bookings_router, interactions_router, verification_router, billing_router,
-               referrals_router):
+               referrals_router, banners_router):
     app.include_router(router, prefix="/api")

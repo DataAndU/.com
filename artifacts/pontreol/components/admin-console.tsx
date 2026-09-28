@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FileSearch, Loader2, Search, ShieldAlert } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchApi } from "@/lib/api/client";
 import { useMe } from "@/lib/api/account";
 import {
@@ -16,8 +16,8 @@ import {
 } from "@/lib/api/admin";
 import { BillingAdminPanel } from "./billing-admin-panel";
 
-type Tab = "verifications" | "users" | "listings" | "audit" | "billing" | "referrals";
-const tabs: Tab[] = ["verifications", "users", "listings", "audit", "billing", "referrals"];
+type Tab = "verifications" | "users" | "listings" | "audit" | "billing" | "referrals" | "banner";
+const tabs: Tab[] = ["verifications", "users", "listings", "audit", "billing", "referrals", "banner"];
 const inputClass = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 export function AdminConsole() {
@@ -44,6 +44,7 @@ function AuthorizedAdminConsole() {
       {tab === "audit" && <AuditLog />}
       {tab === "billing" && <BillingAdminPanel />}
       {tab === "referrals" && <ReferralReport />}
+      {tab === "banner" && <BannerManager />}
     </section>
   );
 }
@@ -145,6 +146,65 @@ function AuditLog() {
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
   const query = useAdminAudit(cursor, 25);
   return <Panel title="Audit trail" loading={query.isLoading} error={query.error}><div className="space-y-2">{query.data?.items.map((record) => <article key={record.id} className="rounded-lg border border-border bg-card p-4" data-testid={`row-audit-${record.id}`}><div className="flex flex-wrap justify-between gap-2"><p className="font-mono text-sm text-primary">{record.action}</p><time className="text-xs text-muted-foreground">{new Date(record.createdAt).toLocaleString()}</time></div><p className="mt-1 text-sm text-muted-foreground">{record.targetType} · {record.targetId}</p><pre className="mt-2 overflow-x-auto text-xs text-muted-foreground">{JSON.stringify(record.metadata, null, 2)}</pre></article>)}{!query.data?.items.length && !query.isLoading && <Empty text="No audit records." />}</div><CursorNav cursor={cursor} history={cursorHistory} nextCursor={query.data?.nextCursor} loading={query.isFetching} testId="audit" onChange={(next, history) => { setCursor(next); setCursorHistory(history); }} /></Panel>;
+}
+
+type AdminBanner = { id: string; message: string; linkPath: string | null; startsAt: string; endsAt: string; active: boolean };
+
+function toLocalInput(iso: string) {
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function BannerManager() {
+  const queryClient = useQueryClient();
+  const list = useQuery<{ items: AdminBanner[] }>({ queryKey: ["admin-banners"], queryFn: () => fetchApi("/admin/banners") });
+  const now = new Date();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [form, setForm] = useState({ message: "", linkPath: "", startsAt: toLocalInput(now.toISOString()),
+    endsAt: toLocalInput(new Date(now.getTime() + 7 * 86400000).toISOString()), active: true });
+  const save = useMutation<AdminBanner, Error, void>({
+    mutationFn: () => fetchApi(editing ? `/admin/banners/${editing}` : "/admin/banners", {
+      method: editing ? "PUT" : "POST",
+      body: JSON.stringify({ message: form.message, linkPath: form.linkPath || null, active: form.active,
+        startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString() }),
+    }),
+    onSuccess: () => {
+      setEditing(null);
+      setForm((f) => ({ ...f, message: "", linkPath: "" }));
+      void queryClient.invalidateQueries({ queryKey: ["admin-banners"] });
+      void queryClient.invalidateQueries({ queryKey: ["banner"] });
+    },
+  });
+  return (
+    <Panel title="Home banner (festivals & announcements)" loading={list.isLoading} error={list.error}>
+      <form className="grid gap-3 rounded-xl border border-border bg-card p-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+        <input className={inputClass} required minLength={3} maxLength={200} placeholder="e.g. Diwali: rent party lights & speakers nearby!" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+        <input className={inputClass} placeholder="Optional link inside Pontreol, e.g. /categories/equipment" value={form.linkPath} onChange={(e) => setForm({ ...form, linkPath: e.target.value })} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs text-muted-foreground">Starts<input type="datetime-local" className={inputClass} value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} /></label>
+          <label className="text-xs text-muted-foreground">Ends<input type="datetime-local" className={inputClass} value={form.endsAt} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} /></label>
+        </div>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Active</label>
+        <div className="flex gap-2">
+          <button type="submit" disabled={save.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{editing ? "Save changes" : "Create banner"}</button>
+          {editing && <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>}
+        </div>
+        {save.error && <ErrorText error={save.error} />}
+      </form>
+      <div className="mt-4 divide-y divide-border rounded-xl border border-border bg-card">
+        {list.data?.items.map((b) => (
+          <div key={b.id} className="flex items-center justify-between gap-3 p-4 text-sm">
+            <div className="min-w-0">
+              <p className="truncate font-medium">{b.message}</p>
+              <p className="text-xs text-muted-foreground">{new Date(b.startsAt).toLocaleString()} → {new Date(b.endsAt).toLocaleString()} · {b.active ? "Active" : "Off"}{b.linkPath ? ` · ${b.linkPath}` : ""}</p>
+            </div>
+            <button type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs" onClick={() => { setEditing(b.id); setForm({ message: b.message, linkPath: b.linkPath || "", startsAt: toLocalInput(b.startsAt), endsAt: toLocalInput(b.endsAt), active: b.active }); }}>Edit</button>
+          </div>
+        ))}
+        {list.data && list.data.items.length === 0 && <p className="p-6 text-center text-sm text-muted-foreground">No banners yet.</p>}
+      </div>
+    </Panel>
+  );
 }
 
 function ReferralReport() {
