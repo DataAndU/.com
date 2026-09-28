@@ -55,12 +55,6 @@ services:
       - key: ALLOWED_ORIGINS
         value: https://pontreol.com,${APP_URL}
         scope: RUN_TIME
-      # Public key (pk_live_...). Read at run time; build does not depend on it.
-      - key: CLERK_PUBLISHABLE_KEY
-        scope: RUN_AND_BUILD_TIME
-      - key: CLERK_SECRET_KEY
-        type: SECRET
-        scope: RUN_TIME
 
   - name: api
     github:
@@ -72,7 +66,7 @@ services:
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
-    # Liveness only: independent of PostgreSQL/Clerk/storage/email so a
+    # Liveness only: independent of PostgreSQL/Google/storage/email so a
     # third-party outage does not restart-loop the API. /api/readyz reports DB.
     health_check:
       http_path: /api/healthz
@@ -106,9 +100,11 @@ services:
       - key: DB_CONNECT_TIMEOUT
         value: "10"
         scope: RUN_TIME
-      - key: CLERK_PUBLISHABLE_KEY
+      # Google sign-in (OAuth 2.0 Web client). Callback registered in Google:
+      #   https://pontreol.com/api/auth/google/callback
+      - key: GOOGLE_CLIENT_ID
         scope: RUN_TIME
-      - key: CLERK_SECRET_KEY
+      - key: GOOGLE_CLIENT_SECRET
         type: SECRET
         scope: RUN_TIME
       - key: RAZORPAY_MODE

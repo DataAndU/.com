@@ -1,6 +1,6 @@
 # Billing API contract
 
-Router mounted at `/api`. Verified Clerk authentication via shared `current_user` dependency (same-origin session cookie or supported bearer session) required except signed Razorpay webhook. Admin endpoints require `User.is_admin`. Amounts are integer INR paise; dates ISO-8601 UTC. Errors use `{detail:string}`. Billing defaults to test mode; live billing is an explicit operational opt-in.
+Router mounted at `/api`. Pontreol session authentication via the shared `current_user` dependency (same-origin session cookie) required except signed Razorpay webhook. Admin endpoints require `User.is_admin`. Amounts are integer INR paise; dates ISO-8601 UTC. Errors use `{detail:string}`. Billing defaults to test mode; live billing is an explicit operational opt-in.
 
 - `GET /billing/plans` → `{plans: Plan[], testMode:boolean, checkoutAvailable:boolean}` (active plans for the user's role).
 - Plan: `{id,name,role:"buyer"|"provider",cycle:"monthly"|"yearly",amountPaise,currency:"INR",active}`. Free access is implicit, never a charged subscription.

@@ -56,11 +56,11 @@ An administrator configures plans, discounts and the free monthly contact limit.
 3. Deny (or block in site settings): no summary request; the page explains how to search an address; searching loads listings for that place.
 4. Navigate Map → Discover → Messages → Map: `/api/me` is requested once per 5 minutes at most (not on every navigation), and returning to Map reuses the cached result.
 5. Sign out, then sign in as a different account: no data from the first account is shown (the query cache is cleared on user change).
-6. Sign-in page renders the Clerk form on Android Chrome (the proxy still forces `Accept-Encoding: identity`).
+6. Sign-in page shows "Continue with Google" on Android Chrome and returns to Pontreol after Google.
 
-## Authentication and account checks (real Clerk, desktop + Android Chrome)
+## Authentication and account checks (real Google sign-in, desktop + Android Chrome)
 
-1. Signed out, open `/home`: you are redirected to `/sign-in`, and the Clerk form renders (not a blank page).
+1. Signed out, open `/home`: you are redirected to `/sign-in?next=/home`, and "Continue with Google" is shown.
 2. Sign in with Google: the callback returns you to the app, and the Map/Discover links work straight away.
 3. Refresh: you are still signed in. Leave the tab for more than 60 s and come back: API calls still succeed (session refresh).
 4. Sign out: `/home` redirects to `/sign-in` again.

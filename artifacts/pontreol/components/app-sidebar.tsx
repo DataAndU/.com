@@ -18,7 +18,7 @@ import {
   Grid
 } from "lucide-react";
 import { useState } from "react";
-import { UserButton } from "@clerk/nextjs";
+import { AccountMenu } from "@/components/account-menu";
 
 import { useMe } from "@/lib/api/account";
 
@@ -49,7 +49,7 @@ export function AppSidebar() {
           <span className="font-bold uppercase tracking-tight text-white">Pontreol</span>
         </div>
         <div className="flex items-center gap-4">
-          <UserButton afterSignOutUrl="/" appearance={{ elements: { userButtonAvatarBox: "w-8 h-8" } }} />
+          <AccountMenu size={8} />
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground">
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -92,7 +92,7 @@ export function AppSidebar() {
         </div>
 
         <div className="p-4 border-t border-border hidden md:flex items-center gap-3">
-          <UserButton afterSignOutUrl="/" appearance={{ elements: { userButtonAvatarBox: "w-10 h-10" } }} />
+          <AccountMenu size={10} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">Account</p>
             <p className="text-xs text-muted-foreground truncate">Manage profile</p>

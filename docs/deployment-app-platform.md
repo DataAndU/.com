@@ -47,7 +47,7 @@ the upload CORS rule once:
 
 ## Failure behaviour
 
-The API health check (`/api/healthz`) doesn't depend on PostgreSQL, Clerk,
+The API health check (`/api/healthz`) doesn't depend on PostgreSQL, Google,
 storage or email. An outage in one of them returns errors only for the
 affected features, and doesn't cause restart loops. `/api/readyz` reports
 database reachability for monitoring.
@@ -62,9 +62,9 @@ The migration's indexes can stay in place; older code ignores them.
 | Variable | web | api | Secret | Notes |
 |---|---|---|---|---|
 | `NODE_ENV=production` | ✓ | ✓ | no | fixed in spec |
-| `ALLOWED_ORIGINS` | ✓ | ✓ | no | `https://pontreol.com` (+ app URL); trusted host, CORS/CSRF, Clerk `azp` |
-| `CLERK_PUBLISHABLE_KEY` | ✓ | ✓ | no | `pk_live_…`; read at run time by the layout/middleware (the build does not need it) |
-| `CLERK_SECRET_KEY` | ✓ | ✓ | **yes** | `sk_live_…`; web: session middleware; api: first-login profile sync |
+| `ALLOWED_ORIGINS` | ✓ | ✓ | no | `https://pontreol.com` (+ app URL); trusted host, CORS/CSRF, Google callback URL |
+| `GOOGLE_CLIENT_ID` | | ✓ | no | Google OAuth Web client ID (`…apps.googleusercontent.com`) |
+| `GOOGLE_CLIENT_SECRET` | | ✓ | **yes** | Google OAuth client secret; never given to Next.js |
 | `DATABASE_URL` | | ✓ | **yes** | DigitalOcean **direct** connection string (port 25060, `sslmode=require`), not a PgBouncer pool |
 | `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, `DB_POOL_RECYCLE`, `DB_CONNECT_TIMEOUT` | | ✓ | no | fixed defaults in spec |
 | `RAZORPAY_MODE=live` | | ✓ | no | fixed |
@@ -78,8 +78,8 @@ The migration's indexes can stay in place; older code ignores them.
 | `RESEND_FROM` | | ✓ | no | `Pontreol <notifications@pontreol.com>`; domain must be verified in Resend |
 | `NOMINATIM_USER_AGENT`, `LOG_LEVEL`, `SLOW_REQUEST_MS` | | ✓ | no | fixed |
 
-Not needed on App Platform: `CLERK_PROXY_URL`, `NEXT_PUBLIC_CLERK_PROXY_URL`,
-`CLERK_ISSUER_URL`, `CLERK_JWKS_URL` (derived from the key),
+Not needed: any `CLERK_*` variable (Clerk was removed; see docs/authentication.md),
+`GOOGLE_REDIRECT_URI` (defaults to `https://pontreol.com/api/auth/google/callback`),
 `GOOGLE_APPLICATION_CREDENTIALS` (file path; Droplet only), `REPLIT_*`, and
 `RAZORPAY_TEST_*` (live mode ignores them).
 

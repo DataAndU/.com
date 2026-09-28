@@ -1,16 +1,10 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { RoleGuard } from "@/components/role-guard";
 import { ForegroundNotifications } from "@/components/notification-center";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { userId } = await auth();
-
-  if (!userId) {
-    redirect("/sign-in");
-  }
-
+// Signed-out visitors are redirected by middleware (no session cookie); the
+// API validates the session on every request and RoleGuard handles 401s.
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-[100dvh] w-full flex-col bg-background overflow-hidden md:flex-row">
       <AppSidebar />

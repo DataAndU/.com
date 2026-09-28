@@ -20,13 +20,6 @@ const nextConfig = {
   // Restrict cross-origin dev assets/HMR to local preview and configured
   // Replit hosts. This is intentionally not a wildcard.
   allowedDevOrigins: [...allowedDevOrigins],
-  env: {
-    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
-    // Replit injects the server-side name. Next must explicitly expose the
-    // canonical production proxy path to Clerk's browser runtime.
-    NEXT_PUBLIC_CLERK_PROXY_URL:
-      process.env.NEXT_PUBLIC_CLERK_PROXY_URL ?? process.env.CLERK_PROXY_URL ?? "",
-  }
 };
 
 export default nextConfig;

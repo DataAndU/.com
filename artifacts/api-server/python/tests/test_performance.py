@@ -8,9 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
@@ -18,6 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+import auth
 import billing_models  # noqa: F401
 import deps
 import observability
@@ -27,8 +26,7 @@ from interactions import conversations
 from listings import bounding_box, haversine_km, home
 from models import Base, Conversation, Listing, Message, User
 
-ISSUER = "https://tenant.clerk.accounts.dev"
-KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+SESSIONS = {}  # user id -> opaque session token (created in the client fixture)
 
 
 @pytest.fixture
@@ -63,7 +61,7 @@ def queries(engine):
 
 
 def add_user(db, user_id, role="buyer", **extra):
-    user = User(id=user_id, clerk_user_id=f"clerk-{user_id}", email=f"{user_id}@example.com",
+    user = User(id=user_id, google_sub=f"google-{user_id}", email=f"{user_id}@example.com",
                 display_name=user_id, role=role, **extra)
     db.add(user)
     return user
@@ -183,17 +181,12 @@ def test_conversation_previews_are_batched(db, engine):
 
 # --- HTTP: authentication stays authoritative -------------------------------
 
-def token(sub, **overrides):
-    now = int(time.time())
-    claims = {"sub": sub, "iss": ISSUER, "iat": now, "exp": now + 60, **overrides}
-    return jwt.encode(claims, KEY, algorithm="RS256")
+def token(user_id):
+    return SESSIONS[user_id]
 
 
 @pytest.fixture
 def client(engine, monkeypatch):
-    monkeypatch.setenv("CLERK_ISSUER_URL", ISSUER)
-    monkeypatch.setattr(deps, "_jwks_client", lambda issuer: SimpleNamespace(
-        get_signing_key_from_jwt=lambda _token: SimpleNamespace(key=KEY.public_key())))
     maker = sessionmaker(engine, expire_on_commit=False)
 
     def test_db():
@@ -212,6 +205,10 @@ def client(engine, monkeypatch):
         add_user(session, "newbie", None)
         add_user(session, "banned", "buyer", suspended=True)
         add_listing(session, "l0", 12.97, 77.59)
+        session.flush()
+        SESSIONS.clear()
+        for user_id in ("buyer", "prov", "admin", "newbie", "banned"):
+            SESSIONS[user_id] = auth.create_session(session, user_id)
         session.commit()
     yield TestClient(app)
     app.dependency_overrides.pop(deps.get_db, None)
@@ -220,7 +217,7 @@ def client(engine, monkeypatch):
 def get(client, path, sub=None, raw=None):
     client.cookies.clear()
     if sub or raw:
-        client.cookies.set("__session", raw if raw is not None else token(f"clerk-{sub}"))
+        client.cookies.set(auth.session_cookie_name(), raw if raw is not None else token(sub))
     return client.get(path)
 
 
@@ -230,16 +227,24 @@ def test_signed_out_requests_are_rejected(client, path):
     assert get(client, path).status_code == 401
 
 
-def test_forged_or_expired_tokens_are_rejected(client):
-    other = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    now = int(time.time())
-    forged = jwt.encode({"sub": "clerk-admin", "iss": ISSUER, "iat": now, "exp": now + 60},
-                        other, algorithm="RS256")
-    assert get(client, "/api/me", raw=forged).status_code == 401
-    expired = token("clerk-buyer", iat=now - 120, exp=now - 60)
-    assert get(client, "/api/me", raw=expired).status_code == 401
-    wrong_issuer = token("clerk-buyer", iss="https://evil.example")
-    assert get(client, "/api/me", raw=wrong_issuer).status_code == 401
+def test_forged_expired_and_revoked_sessions_are_rejected(client, engine):
+    import secrets
+    from sqlalchemy import update
+    from models import AuthSession
+    assert get(client, "/api/me", raw=secrets.token_urlsafe(32)).status_code == 401  # forged
+    assert get(client, "/api/me", raw="x" * 300).status_code == 401                  # oversized
+    maker = sessionmaker(engine, expire_on_commit=False)
+    with maker() as db:
+        db.execute(update(AuthSession).where(
+            AuthSession.token_hash == auth.token_hash(token("prov"))).values(
+            expires_at=auth.utcnow() - timedelta(seconds=1)))
+        db.execute(update(AuthSession).where(
+            AuthSession.token_hash == auth.token_hash(token("admin"))).values(
+            revoked_at=auth.utcnow()))
+        db.commit()
+    assert get(client, "/api/me", "prov").status_code == 401   # expired
+    assert get(client, "/api/me", "admin").status_code == 401  # revoked
+    assert get(client, "/api/me", "buyer").status_code == 200  # others unaffected
 
 
 def test_signed_in_me_and_marketplace_access(client):
@@ -270,7 +275,7 @@ def test_home_summary_rejects_invalid_coordinates(client):
 
 def test_cross_site_mutation_still_denied_before_auth(client):
     client.cookies.clear()
-    client.cookies.set("__session", token("clerk-buyer"))
+    client.cookies.set(auth.session_cookie_name(), token("buyer"))
     response = client.patch("/api/me", json={"displayName": "x"},
                             headers={"sec-fetch-site": "cross-site"})
     assert response.status_code == 403
@@ -280,9 +285,9 @@ def test_timing_log_has_route_template_and_no_sensitive_values(client, caplog):
     observability.logger.propagate = True
     try:
         with caplog.at_level(logging.INFO, logger="pontreol.timing"):
-            secret = token("clerk-buyer")
+            secret = token("buyer")
             client.cookies.clear()
-            client.cookies.set("__session", secret)
+            client.cookies.set(auth.session_cookie_name(), secret)
             response = client.get("/api/listings/l0?lat=12.97&lng=77.59")
     finally:
         observability.logger.propagate = False

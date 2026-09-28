@@ -21,7 +21,6 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetMeResponse = zod.object({
   "id": zod.string().uuid(),
-  "clerkUserId": zod.string(),
   "email": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),
@@ -43,7 +42,6 @@ export const SetMyRoleBody = zod.object({
 
 export const SetMyRoleResponse = zod.object({
   "id": zod.string().uuid(),
-  "clerkUserId": zod.string(),
   "email": zod.string(),
   "displayName": zod.string(),
   "avatarUrl": zod.string().nullish(),

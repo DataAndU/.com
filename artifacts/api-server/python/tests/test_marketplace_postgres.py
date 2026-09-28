@@ -75,11 +75,11 @@ def api(database):
 
 def users(database):
     with database.begin() as db:
-        buyer = User(clerk_user_id="buyer_" + uuid.uuid4().hex,
+        buyer = User(google_sub="buyer_" + uuid.uuid4().hex,
             email=f"{uuid.uuid4().hex}@example.com", display_name="Buyer", role="buyer")
-        provider = User(clerk_user_id="provider_" + uuid.uuid4().hex,
+        provider = User(google_sub="provider_" + uuid.uuid4().hex,
             email=f"{uuid.uuid4().hex}@example.com", display_name="Provider", role="provider")
-        other = User(clerk_user_id="other_" + uuid.uuid4().hex,
+        other = User(google_sub="other_" + uuid.uuid4().hex,
             email=f"{uuid.uuid4().hex}@example.com", display_name="Other", role="buyer")
         db.add_all([buyer, provider, other])
     return buyer, provider, other

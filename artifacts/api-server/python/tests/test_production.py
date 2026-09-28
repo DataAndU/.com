@@ -165,20 +165,15 @@ def test_liveness_independent_of_database_and_readiness_reports_outage(monkeypat
     assert client.get("/api/readyz").status_code == 503
 
 
-def test_clerk_jwks_outage_returns_503_not_crash(monkeypatch):
+def test_google_jwks_outage_returns_503_not_crash():
+    import auth
     import jwt as pyjwt
-    import deps
-    from starlette.requests import Request
-    monkeypatch.setenv("CLERK_ISSUER_URL", "https://tenant.clerk.accounts.dev")
 
     def unavailable(_token):
         raise pyjwt.PyJWKClientConnectionError("jwks down")
-    monkeypatch.setattr(deps, "_jwks_client",
-                        lambda issuer: SimpleNamespace(get_signing_key_from_jwt=unavailable))
-    request = Request({"type": "http", "method": "GET", "path": "/api/me", "query_string": b"",
-                       "headers": [(b"cookie", b"__session=abc"), (b"host", b"localhost")]})
     with pytest.raises(HTTPException) as error:
-        deps._claims(request)
+        auth.verify_id_token("a.b.c", "client", "nonce",
+                             SimpleNamespace(get_signing_key_from_jwt=unavailable))
     assert error.value.status_code == 503
 
 

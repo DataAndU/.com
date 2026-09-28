@@ -18,7 +18,7 @@ Location-based availability marketplace connecting buyers and providers. Marketp
 - Frontend: Next.js App Router, TypeScript, Tailwind CSS
 - API: Python FastAPI
 - DB: PostgreSQL + SQLAlchemy; legacy Drizzle scaffolding is not the marketplace schema
-- Validation: Pydantic on the API; Clerk verifies identity, database roles enforce permissions
+- Validation: Pydantic on the API; Google OIDC sign-in with Pontreol server-side sessions (docs/authentication.md); database roles enforce permissions
 - API contracts: `docs/api-contract.md`, `docs/billing-contract.md`, FastAPI OpenAPI
 
 ## Where things live
@@ -29,7 +29,7 @@ Location-based availability marketplace connecting buyers and providers. Marketp
 
 ## Architecture decisions
 
-- `RoleGuard` and the cached `/api/me` query are UX only; the API re-verifies the Clerk JWT, suspension, role and admin flag on every request. Pages render in parallel with `/api/me`.
+- `RoleGuard` and the cached `/api/me` query are UX only; the API re-validates the session cookie, suspension, role and admin flag on every request. Pages render in parallel with `/api/me`.
 - The home map never queries a placeholder location: `useUserLocation` (`lib/geolocation.ts`) gates `/home/summary?view=map` on real GPS or searched coordinates.
 - Geo search is a PostgreSQL lat/lng bounding box (partial index) plus exact haversine; PostGIS is the documented future path (`docs/performance.md`).
 - API timing lines (`pontreol.timing`, `slow=1` above `SLOW_REQUEST_MS`) log route templates only; DB pool size is env-tunable.

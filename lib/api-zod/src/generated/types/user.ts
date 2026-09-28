@@ -10,7 +10,6 @@ import type { UserVerificationStatus } from './userVerificationStatus';
 
 export interface User {
   id: string;
-  clerkUserId: string;
   email: string;
   displayName: string;
   /** @nullable */

@@ -48,7 +48,7 @@ def _route_template(scope):
 
 
 class TimingMiddleware:
-    """Pure ASGI middleware (no response buffering, safe for the Clerk proxy)."""
+    """Pure ASGI middleware (no response buffering)."""
 
     def __init__(self, app):
         self.app = app
@@ -76,8 +76,6 @@ class TimingMiddleware:
             _query_count.reset(token)
             duration = (time.perf_counter() - start) * 1000
             path = _route_template(scope)
-            if path.startswith("/api/__clerk"):
-                path = "/api/__clerk/*"
             level = logging.WARNING if duration >= SLOW_MS else logging.INFO
             logger.log(level, "request method=%s path=%s status=%s duration_ms=%.1f db_queries=%d%s",
                        scope.get("method"), path, status["code"], duration, counter[0],

@@ -13,13 +13,7 @@ RUN pnpm install --frozen-lockfile --filter "@workspace/pontreol..."
 
 COPY artifacts/pontreol ./artifacts/pontreol
 
-# Clerk's publishable key is NOT required at build time: the root layout and
-# middleware read CLERK_PUBLISHABLE_KEY at request time and hand it to the
-# browser. If App Platform does pass it (build args), it is simply inlined too.
-ARG CLERK_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-ARG CLERK_PROXY_URL
-ARG NEXT_PUBLIC_CLERK_PROXY_URL
+# No build-time secrets or keys: authentication is handled by the API.
 RUN NODE_ENV=production pnpm --filter @workspace/pontreol run build
 
 FROM node:24-bookworm-slim
@@ -30,6 +24,5 @@ COPY --from=build --chown=node:node /repo /repo
 USER node
 WORKDIR /repo/artifacts/pontreol
 EXPOSE 3000
-# Binds 0.0.0.0 on App Platform's $PORT (Next/Clerk self-proxy needs a
-# non-loopback bind; see docs/deployment-digitalocean.md).
+# Binds 0.0.0.0 on App Platform's $PORT (required by App Platform routing).
 CMD ["sh", "-c", "exec node_modules/.bin/next start --hostname 0.0.0.0 --port ${PORT}"]

@@ -28,7 +28,7 @@ def db():
 def make_user(index, role="buyer"):
     return User(
         id=f"00000000-0000-0000-0000-{index:012d}",
-        clerk_user_id=f"cursor_user_{index}",
+        google_sub=f"cursor_user_{index}",
         email=f"cursor{index}@example.com",
         display_name=f"Cursor {index}",
         role=role,

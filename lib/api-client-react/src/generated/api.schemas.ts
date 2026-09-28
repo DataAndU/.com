@@ -36,7 +36,6 @@ export const UserVerificationStatus = {
 
 export interface User {
   id: string;
-  clerkUserId: string;
   email: string;
   displayName: string;
   /** @nullable */

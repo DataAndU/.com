@@ -1,15 +1,8 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import { Hammer, LayoutGrid, Box, Car, Building2, ChevronRight } from "lucide-react";
 
-export default async function LandingPage() {
-  const { userId } = await auth();
-
-  if (userId) {
-    redirect("/home");
-  }
-
+// Visitors with a session cookie are sent to /home by middleware.
+export default function LandingPage() {
   const categories = [
     { icon: Hammer, label: "Services" },
     { icon: LayoutGrid, label: "Equipment" },

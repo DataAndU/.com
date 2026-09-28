@@ -14,7 +14,7 @@ def iso(value):
 
 
 def user_json(user):
-    return dict(id=user.id, clerkUserId=user.clerk_user_id, email=user.email,
+    return dict(id=user.id, email=user.email,
                 displayName=user.display_name, avatarUrl=user.avatar_url, role=user.role,
                 isAdmin=user.is_admin, verificationStatus=user.verification_status,
                 rating=user.rating, reviewCount=user.review_count,

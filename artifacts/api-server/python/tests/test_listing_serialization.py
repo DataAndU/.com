@@ -22,9 +22,9 @@ def data():
     for model in (User, Listing, Media, ListingMedia):
         model.__table__.create(engine)
     with Session(engine, expire_on_commit=False) as db:
-        a = User(id="provider-a", clerk_user_id="clerk-a", email="a@example.com",
+        a = User(id="provider-a", google_sub="google-a", email="a@example.com",
                  display_name="A", role="provider")
-        b = User(id="provider-b", clerk_user_id="clerk-b", email="b@example.com",
+        b = User(id="provider-b", google_sub="google-b", email="b@example.com",
                  display_name="B", role="provider")
         db.add_all((a, b))
         start = datetime(2025, 1, 1, tzinfo=timezone.utc)

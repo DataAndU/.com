@@ -2,14 +2,19 @@
 
 import { useMe, useUpdateRole } from "@/lib/api/account";
 import { User, LogOut, Check } from "lucide-react";
-import { SignOutButton } from "@clerk/nextjs";
+import { redirectToSignIn, signOut } from "@/lib/auth";
+import { ApiError } from "@/lib/api/client";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function OnboardingPage() {
-  const { data: user, isLoading } = useMe();
+  const { data: user, isLoading, error } = useMe();
   const { mutate: updateRole, isPending } = useUpdateRole();
   const router = useRouter();
+
+  useEffect(() => {
+    if (error instanceof ApiError && error.status === 401) redirectToSignIn();
+  }, [error]);
 
   useEffect(() => {
     if (user?.role) {
@@ -85,12 +90,10 @@ export default function OnboardingPage() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-border flex justify-end relative z-10">
-          <SignOutButton>
-            <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <LogOut className="w-4 h-4" />
-              Sign Out
-            </button>
-          </SignOutButton>
+          <button type="button" onClick={() => void signOut()} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
         </div>
       </div>
     </div>

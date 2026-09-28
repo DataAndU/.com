@@ -41,8 +41,8 @@ sudo chown root:pontreol /etc/pontreol/*  && sudo chmod 640 /etc/pontreol/*
 
 External configuration:
 
-- **Clerk:** add `https://pontreol.com` as the production domain. If you use
-  `CLERK_PROXY_URL=/api/__clerk`, enable the proxy in the Clerk dashboard.
+- **Google sign-in:** OAuth Web client with redirect URI
+  `https://pontreol.com/api/auth/google/callback` (see docs/authentication.md).
 - **Razorpay:** set the webhook to `https://pontreol.com/api/billing/webhook`.
 - **GCS:** create the bucket, grant the service account `roles/storage.objectAdmin`,
   and allow browser uploads with
@@ -118,6 +118,6 @@ them. To remove them anyway:
 | Dependency down | Effect |
 |---|---|
 | PostgreSQL | API starts; `/api/healthz` 200, `/api/readyz` 503; data endpoints error; pool reconnects automatically (pre-ping) |
-| Clerk | Cached JWKS keeps verifying sessions for ≤5 min; then API returns 503 (not a crash); sign-in UI unavailable |
+| Google | Existing sessions keep working (they are Pontreol's own); only new sign-ins fail with a friendly error |
 | GCS | Uploads and `/api/media/*` return 503; photos show a placeholder; everything else works |
 | Resend | Emails stay queued with retry (≤10 attempts); nothing else affected |

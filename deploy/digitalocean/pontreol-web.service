@@ -7,8 +7,7 @@ Wants=network-online.target
 User=pontreol
 WorkingDirectory=/opt/pontreol/artifacts/pontreol
 EnvironmentFile=/etc/pontreol/pontreol.env
-# Binds 0.0.0.0 because Next/Clerk middleware rewrites proxy back through
-# localhost:3000 (fails when bound to 127.0.0.1). ufw keeps 3000 private.
+# ufw keeps port 3000 private; only nginx is public.
 ExecStart=/usr/bin/env pnpm exec next start --hostname 0.0.0.0 --port 3000
 Restart=on-failure
 RestartSec=3

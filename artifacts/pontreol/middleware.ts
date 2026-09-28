@@ -1,11 +1,8 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-import {
-  isDevelopmentFromPublishableKey,
-  publishableKeyFromHost,
-} from '@clerk/shared/keys';
-import { NextResponse, type NextRequest, type NextFetchEvent } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
-const isPublicRoute = createRouteMatcher(['/', '/sign-in(.*)', '/sign-up(.*)', '/api(.*)']);
+// Session cookie names issued by the API (api-server/python/auth.py).
+const SESSION_COOKIES = ['__Host-pontreol_session', 'pontreol_session'];
+const PUBLIC_PATHS = [/^\/$/, /^\/sign-in(\/.*)?$/, /^\/sign-up(\/.*)?$/, /^\/api(\/.*)?$/];
 
 function configuredHosts(): Set<string> {
   const hosts = new Set<string>();
@@ -26,64 +23,40 @@ function configuredHosts(): Set<string> {
   return hosts;
 }
 
-function effectiveHost(request: NextRequest, fallbackKey: string): string | null {
+function trustedHost(request: NextRequest): boolean {
   const forwarded = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
   const host = (forwarded || request.headers.get('host') || '').toLowerCase().replace(/:\d+$/, '');
-  if (!host) return null;
-  if (isDevelopmentFromPublishableKey(fallbackKey) || host === 'localhost' || host === '127.0.0.1') {
-    return host;
-  }
-  return configuredHosts().has(host) ? host : null;
+  if (!host) return false;
+  if (process.env.NODE_ENV !== 'production' || host === 'localhost' || host === '127.0.0.1') return true;
+  return configuredHosts().has(host);
 }
 
-function clerkOptions(request: NextRequest) {
-  const fallbackKey =
-    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY || '';
-  if (!fallbackKey) throw new Error('Clerk publishable key is not configured');
-  const host = effectiveHost(request, fallbackKey);
-  const publishableKey = host ? publishableKeyFromHost(host, fallbackKey) : fallbackKey;
-  const proxyUrl =
-    process.env.NEXT_PUBLIC_CLERK_PROXY_URL ?? process.env.CLERK_PROXY_URL ?? '';
-  return { publishableKey, proxyUrl: proxyUrl || undefined };
-}
+/**
+ * UX gate only: a missing session cookie redirects to /sign-in before any page
+ * renders. Whether a cookie is valid is decided by the API on every request
+ * (RoleGuard sends expired sessions back to /sign-in).
+ */
+export default function middleware(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  // Hosting probes must not depend on host checks or sessions.
+  if (pathname === '/healthz') return NextResponse.next();
+  if (!trustedHost(request)) return new NextResponse('Invalid Host', { status: 400 });
 
-const clerkHandler = clerkMiddleware(
-  async (auth, req) => {
-    const fallbackKey =
-      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY || '';
-    if (!fallbackKey) {
-      return new NextResponse('Authentication is not configured', { status: 503 });
-    }
-    if (!effectiveHost(req, fallbackKey)) {
-      return new NextResponse('Invalid Host', { status: 400 });
-    }
-    if (!isPublicRoute(req)) {
-      const { userId } = await auth();
-      if (!userId) {
-        // Clerk's default protect response can be a 404 for page requests
-        // without a configured sign-in URL. Direct protected URLs should
-        // send visitors to the existing local sign-in route instead.
-        return NextResponse.redirect(new URL('/sign-in', req.url));
-      }
-    }
-  },
-  clerkOptions,
-);
-
-export default function middleware(request: NextRequest, event: NextFetchEvent) {
-  // Hosting probes must not depend on Clerk keys, host checks, or sessions.
-  // All other routes retain their existing authentication rules.
-  if (request.nextUrl.pathname === '/healthz') {
-    return NextResponse.next();
+  const hasSession = SESSION_COOKIES.some((name) => request.cookies.has(name));
+  if (pathname === '/' && hasSession) {
+    return NextResponse.redirect(new URL('/home', request.url));
   }
-  return clerkHandler(request, event);
+  if (!hasSession && !PUBLIC_PATHS.some((pattern) => pattern.test(pathname))) {
+    const signIn = new URL('/sign-in', request.url);
+    signIn.searchParams.set('next', pathname + search);
+    return NextResponse.redirect(signIn);
+  }
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
     // Skip Next.js internals and all static files, unless found in search params
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
   ],
 };

@@ -7,9 +7,9 @@ export const getMeQueryKey = () => ["account", "me"];
  * The signed-in profile is shared by the sidebar, RoleGuard and pages through
  * one React Query cache entry, so client navigation does not refetch it.
  * This cache only drives UI; every API endpoint re-authorizes from the
- * verified Clerk session and the database. It is invalidated by profile/role/
- * verification mutations and cleared entirely when the Clerk user changes
- * (see ClerkQueryClientCacheInvalidator).
+ * Pontreol session cookie and the database. It is invalidated by profile/role/
+ * verification mutations; sign-in and sign-out are full page loads, so no
+ * cached data survives an account switch (see lib/auth.ts).
  */
 export const ME_STALE_TIME_MS = 5 * 60 * 1000;
 

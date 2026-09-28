@@ -32,7 +32,6 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 
 export type User = {
   id: string;
-  clerkUserId: string;
   email: string;
   displayName: string;
   avatarUrl: string;

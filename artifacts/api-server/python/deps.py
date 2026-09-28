@@ -1,15 +1,12 @@
-"""Database and verified Clerk cookie dependencies."""
-import base64
+"""Database and native Pontreol session dependencies."""
 import os
 from urllib.parse import urlparse
 
-import httpx
-import jwt
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from models import User
+from models import AuthSession, User
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 if DATABASE_URL.startswith("postgres://"):
@@ -64,22 +61,6 @@ def get_db():
         db.close()
 
 
-def _issuer():
-    configured = os.getenv("CLERK_ISSUER_URL", "").rstrip("/")
-    if configured:
-        return configured
-    key = os.getenv("CLERK_PUBLISHABLE_KEY", "")
-    try:
-        encoded = key.split("_", 2)[2]
-        encoded += "=" * (-len(encoded) % 4)
-        host = base64.urlsafe_b64decode(encoded).decode().rstrip("$")
-        if not host or "/" in host:
-            raise ValueError
-        return "https://" + host
-    except Exception as exc:
-        raise HTTPException(503, "Clerk issuer is not configured") from exc
-
-
 def _trusted_hosts():
     hosts = set()
     for value in os.getenv("ALLOWED_ORIGINS", "").split(","):
@@ -106,19 +87,6 @@ def _effective_host(request: Request):
     return host if host in _trusted_hosts() else None
 
 
-def _issuers(request: Request):
-    """Allow only the configured tenant and its trusted managed custom host."""
-    configured = _issuer()
-    issuers = [configured]
-    key = os.getenv("CLERK_PUBLISHABLE_KEY", "")
-    host = _effective_host(request)
-    if key.startswith("pk_live_") and host:
-        custom = f"https://clerk.{host}"
-        if custom not in issuers:
-            issuers.append(custom)
-    return issuers
-
-
 def _allowed_origins(request: Request):
     configured = {x.strip().rstrip("/") for x in os.getenv("ALLOWED_ORIGINS", "").split(",") if x.strip()}
     for key in ("REPLIT_DEV_DOMAIN", "REPLIT_DOMAINS"):
@@ -132,88 +100,40 @@ def _allowed_origins(request: Request):
     return configured
 
 
-_jwks_clients = {}
-
-
-def _jwks_client(issuer):
-    url = os.getenv("CLERK_JWKS_URL", issuer + "/.well-known/jwks.json")
-    if url not in _jwks_clients:
-        _jwks_clients[url] = jwt.PyJWKClient(url, cache_keys=True, lifespan=300)
-    return _jwks_clients[url]
-
-
 def _same_origin_mutation(request: Request):
     if request.method in {"GET", "HEAD", "OPTIONS"}:
         return
     site = request.headers.get("sec-fetch-site")
     origin = request.headers.get("origin")
     allowed = _allowed_origins(request)
-    if site and site not in {"same-origin", "same-site", "none"}:
+    if site and site not in {"same-origin", "none"}:
         raise HTTPException(403, "Cross-site mutation denied")
     if origin and origin.rstrip("/") not in allowed:
         raise HTTPException(403, "Origin not allowed")
+    if not site and not origin:
+        # Browsers always send one of these on POST/PUT/PATCH/DELETE; a cookie-
+        # authenticated mutation without either is not from Pontreol's pages.
+        raise HTTPException(403, "Missing origin on state-changing request")
 
 
-def _claims(request: Request):
-    _same_origin_mutation(request)
-    token = request.cookies.get("__session")
-    if not token:
-        raise HTTPException(401, "Authentication required")
-    issuers = _issuers(request)
-    issuer = issuers[0]
-    try:
-        key = _jwks_client(issuer).get_signing_key_from_jwt(token)
-        claims = jwt.decode(token, key.key, algorithms=["RS256"], issuer=issuers,
-                            options={"require": ["exp", "iat", "iss", "sub"]})
-    except jwt.PyJWKClientConnectionError as exc:
-        raise HTTPException(503, "Clerk verification service is unavailable") from exc
-    except jwt.PyJWTError as exc:
-        raise HTTPException(401, "Invalid or expired session") from exc
-    azp = claims.get("azp")
-    if azp and azp.rstrip("/") not in _allowed_origins(request):
-        raise HTTPException(401, "Session authorized party is not allowed")
-    return claims
-
-
-def _clerk_profile(clerk_id: str):
-    secret = os.getenv("CLERK_SECRET_KEY", "")
-    if not secret:
-        raise HTTPException(503, "Clerk user synchronization is not configured")
-    try:
-        response = httpx.get(f"https://api.clerk.com/v1/users/{clerk_id}",
-                             headers={"Authorization": f"Bearer {secret}"}, timeout=8)
-        response.raise_for_status()
-        profile = response.json()
-        primary = profile.get("primary_email_address_id")
-        emails = profile.get("email_addresses", [])
-        email_record = next((x for x in emails if x.get("id") == primary), None)
-        verification = (email_record or {}).get("verification") or {}
-        email = (email_record or {}).get("email_address")
-        if verification.get("status") != "verified":
-            email = None
-        if not email:
-            raise ValueError("verified primary email missing")
-        name = " ".join(x for x in [profile.get("first_name"), profile.get("last_name")] if x).strip()
-        return email, name or email.split("@")[0], profile.get("image_url")
-    except (httpx.HTTPError, ValueError, KeyError) as exc:
-        raise HTTPException(503, "Could not synchronize the authenticated Clerk user") from exc
+def _session_user(request: Request, db):
+    """Resolve the opaque session cookie to (session, user) in one query."""
+    import auth  # auth depends on this module; import lazily
+    token = request.cookies.get(auth.session_cookie_name())
+    if not token or len(token) > 256:
+        return None, None
+    row = db.execute(select(AuthSession, User).join(User, User.id == AuthSession.user_id).where(
+        AuthSession.token_hash == auth.token_hash(token),
+        AuthSession.revoked_at.is_(None),
+        AuthSession.expires_at > auth.utcnow())).first()
+    return (row[0], row[1]) if row else (None, None)
 
 
 def current_user(request: Request, db: Session = Depends(get_db)):
-    claims = _claims(request)
-    clerk_id = claims["sub"]
-    user = db.scalar(select(User).where(User.clerk_user_id == clerk_id))
-    if not user:
-        email, name, avatar = _clerk_profile(clerk_id)
-        user = User(clerk_user_id=clerk_id, email=email, display_name=name, avatar_url=avatar)
-        db.add(user)
-        try:
-            db.flush()
-        except Exception:
-            db.rollback()
-            user = db.scalar(select(User).where(User.clerk_user_id == clerk_id))
-            if not user:
-                raise
+    _same_origin_mutation(request)
+    _, user = _session_user(request, db)
+    if user is None:
+        raise HTTPException(401, "Authentication required")
     if user.suspended:
         raise HTTPException(403, "Account is suspended")
     if user.role is None and request.url.path not in {"/api/me", "/api/me/role"}:

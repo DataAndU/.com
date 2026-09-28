@@ -1,31 +1,8 @@
 "use client";
 
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { useClerk } from "@clerk/nextjs";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
 import { isClientError } from "@/lib/api/client";
-
-function ClerkQueryClientCacheInvalidator() {
-  const { addListener } = useClerk();
-  const queryClient = useQueryClient();
-  const prevUserIdRef = useRef<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    const unsubscribe = addListener(({ user }) => {
-      const userId = user?.id ?? null;
-      if (
-        prevUserIdRef.current !== undefined &&
-        prevUserIdRef.current !== userId
-      ) {
-        queryClient.clear();
-      }
-      prevUserIdRef.current = userId;
-    });
-    return unsubscribe;
-  }, [addListener, queryClient]);
-
-  return null;
-}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -42,7 +19,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }));
   return (
     <QueryClientProvider client={queryClient}>
-      <ClerkQueryClientCacheInvalidator />
       {children}
     </QueryClientProvider>
   );

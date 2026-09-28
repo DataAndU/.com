@@ -256,13 +256,11 @@ components:
           type: string
     User:
       type: object
-      required: [id, clerkUserId, email, displayName, role, isAdmin, createdAt]
+      required: [id, email, displayName, role, isAdmin, createdAt]
       properties:
         id:
           type: string
           format: uuid
-        clerkUserId:
-          type: string
         email:
           type: string
         displayName:

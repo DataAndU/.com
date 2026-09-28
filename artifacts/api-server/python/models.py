@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, Float,
-                        ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, text)
+                        ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, text)
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -20,7 +20,11 @@ def now():
 class User(Base):
     __tablename__ = "users"
     id = Column(String(36), primary_key=True, default=uid)
-    clerk_user_id = Column(String(255), nullable=False, unique=True, index=True)
+    # Legacy Clerk identity: retained (nullable) for rollback/audit only.
+    # Nothing authenticates with it any more (migration 0002).
+    clerk_user_id = Column(String(255), nullable=True, unique=True, index=True)
+    # Google OpenID Connect subject: the stable login identity.
+    google_sub = Column(String(255), nullable=True, unique=True, index=True)
     email = Column(String(320), nullable=False)
     display_name = Column(String(120), nullable=False)
     avatar_url = Column(Text)
@@ -35,6 +39,30 @@ class User(Base):
     review_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
+    __table_args__ = (Index("ix_users_email_lower", func.lower(email)),)
+
+
+class AuthSession(Base):
+    """Opaque server-side login session. Only a SHA-256 hash of the random
+    cookie token is stored, so a database leak does not reveal live cookies."""
+    __tablename__ = "auth_sessions"
+    token_hash = Column(String(64), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True))
+
+
+class OAuthLoginAttempt(Base):
+    """One pending Google sign-in: binds state/nonce/PKCE verifier to the
+    browser's login cookie. Single use and short lived (replay protection)."""
+    __tablename__ = "oauth_login_attempts"
+    browser_hash = Column(String(64), primary_key=True)
+    state = Column(String(128), nullable=False)
+    nonce = Column(String(128), nullable=False)
+    code_verifier = Column(String(128), nullable=False)
+    next_path = Column(String(512), nullable=False, default="/home")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now, index=True)
 
 
 class Listing(Base):
