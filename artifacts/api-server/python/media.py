@@ -1,3 +1,7 @@
+import base64
+import binascii
+import json
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
@@ -19,11 +23,35 @@ TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 _storage_client = None
 
 
+def _service_account_info():
+    """Service-account key supplied as an environment secret (App Platform has
+    no persistent filesystem for a key file). Accepts raw JSON or base64 JSON.
+    Returns None when unset so file-based/ambient credentials still work."""
+    raw = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "").strip()
+    if not raw:
+        return None
+    if not raw.startswith("{"):
+        try:
+            raw = base64.b64decode(raw, validate=True).decode()
+        except (binascii.Error, UnicodeDecodeError) as exc:
+            raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON or base64") from exc
+    try:
+        info = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        # Never echo the value: it contains a private key.
+        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON") from exc
+    if info.get("type") != "service_account" or not info.get("private_key"):
+        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON must be a service-account key")
+    return info
+
+
 def _client():
     # Credential discovery is slow; reuse one thread-safe client per process.
     global _storage_client
     if _storage_client is None:
-        _storage_client = storage.Client()
+        info = _service_account_info()
+        _storage_client = (storage.Client.from_service_account_info(info) if info
+                           else storage.Client())
     return _storage_client
 
 
@@ -35,6 +63,9 @@ def bucket():
     try:
         return _client().bucket(bucket_id), private_dir
     except Exception as exc:
+        # ValueError messages above are written to be secret-free.
+        detail = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+        logging.getLogger("pontreol.storage").warning("Cloud storage client unavailable: %s", detail)
         raise HTTPException(503, "Durable cloud storage is unavailable") from exc
 
 

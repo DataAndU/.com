@@ -180,3 +180,51 @@ def test_clerk_jwks_outage_returns_503_not_crash(monkeypatch):
     with pytest.raises(HTTPException) as error:
         deps._claims(request)
     assert error.value.status_code == 503
+
+
+# --- Google Cloud credentials from environment (App Platform) ---------------
+
+def test_gcs_credentials_from_env_json_and_base64(monkeypatch):
+    import base64
+    import json as jsonlib
+    key = {"type": "service_account", "private_key": "-----BEGIN PRIVATE KEY-----\nX\n",
+           "client_email": "svc@proj.iam.gserviceaccount.com", "project_id": "proj"}
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", jsonlib.dumps(key))
+    assert media_module._service_account_info() == key
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON",
+                       base64.b64encode(jsonlib.dumps(key).encode()).decode())
+    assert media_module._service_account_info() == key
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    assert media_module._service_account_info() is None
+
+
+@pytest.mark.parametrize("value", ["{not json", "!!!notbase64", '{"type": "authorized_user"}'])
+def test_invalid_gcs_credentials_fail_safely(monkeypatch, value, caplog):
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", value)
+    with pytest.raises(ValueError) as error:
+        media_module._service_account_info()
+    assert value not in str(error.value)
+    # Through the endpoint path: 503, logged without the secret value.
+    monkeypatch.setattr(media_module, "_storage_client", None)
+    monkeypatch.setenv("DEFAULT_OBJECT_STORAGE_BUCKET_ID", "b")
+    monkeypatch.setenv("PRIVATE_OBJECT_DIR", "private")
+    with pytest.raises(HTTPException) as unavailable:
+        media_module.bucket()
+    assert unavailable.value.status_code == 503
+    assert all(value not in record.getMessage() for record in caplog.records)
+
+
+def test_gcs_client_built_from_env_key(monkeypatch):
+    import json as jsonlib
+    captured = {}
+
+    class FakeClient:
+        @classmethod
+        def from_service_account_info(cls, info):
+            captured["info"] = info
+            return cls()
+    key = {"type": "service_account", "private_key": "k", "client_email": "e", "project_id": "p"}
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", jsonlib.dumps(key))
+    monkeypatch.setattr(media_module, "_storage_client", None)
+    monkeypatch.setattr(media_module.storage, "Client", FakeClient)
+    assert isinstance(media_module._client(), FakeClient) and captured["info"] == key

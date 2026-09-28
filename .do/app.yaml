@@ -1,0 +1,148 @@
+# DigitalOcean App Platform spec for Pontreol.
+# Two services built from Dockerfiles at the repository root:
+#   web  (Next.js)  <- https://pontreol.com/
+#   api  (FastAPI)  <- https://pontreol.com/api/*   (prefix preserved: routes are /api/...)
+# Secrets have NO values here. Enter them in App Platform -> Settings -> Environment Variables.
+# Guide: docs/deployment-app-platform.md
+name: pontreol
+region: blr
+
+domains:
+  - domain: pontreol.com
+    type: PRIMARY
+
+ingress:
+  rules:
+    - match:
+        path:
+          prefix: /api
+      component:
+        name: api
+        # FastAPI routes include the /api prefix. Without this, App Platform
+        # strips /api and every API call 404s.
+        preserve_path_prefix: true
+    - match:
+        path:
+          prefix: /
+      component:
+        name: web
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+services:
+  - name: web
+    github:
+      repo: DataAndU/.com
+      branch: claude/pontreol-performance-optimization-x66nt5
+      deploy_on_push: true
+    dockerfile_path: deploy/digitalocean-app-platform/web.Dockerfile
+    source_dir: /
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    health_check:
+      http_path: /healthz
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 6
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+      - key: ALLOWED_ORIGINS
+        value: https://pontreol.com,${APP_URL}
+        scope: RUN_TIME
+      # Public key (pk_live_...). Needed at BUILD time: it is inlined into browser JS.
+      - key: CLERK_PUBLISHABLE_KEY
+        scope: RUN_AND_BUILD_TIME
+      - key: CLERK_SECRET_KEY
+        type: SECRET
+        scope: RUN_TIME
+
+  - name: api
+    github:
+      repo: DataAndU/.com
+      branch: claude/pontreol-performance-optimization-x66nt5
+      deploy_on_push: true
+    dockerfile_path: deploy/digitalocean-app-platform/api.Dockerfile
+    source_dir: /
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    # Liveness only: independent of PostgreSQL/Clerk/storage/email so a
+    # third-party outage does not restart-loop the API. /api/readyz reports DB.
+    health_check:
+      http_path: /api/healthz
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 6
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+      - key: ALLOWED_ORIGINS
+        value: https://pontreol.com,${APP_URL}
+        scope: RUN_TIME
+      # Managed PostgreSQL connection string incl. ?sslmode=require
+      - key: DATABASE_URL
+        type: SECRET
+        scope: RUN_TIME
+      - key: DB_POOL_SIZE
+        value: "5"
+        scope: RUN_TIME
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+        scope: RUN_TIME
+      - key: DB_POOL_TIMEOUT
+        value: "10"
+        scope: RUN_TIME
+      - key: DB_POOL_RECYCLE
+        value: "300"
+        scope: RUN_TIME
+      - key: DB_CONNECT_TIMEOUT
+        value: "10"
+        scope: RUN_TIME
+      - key: CLERK_PUBLISHABLE_KEY
+        scope: RUN_TIME
+      - key: CLERK_SECRET_KEY
+        type: SECRET
+        scope: RUN_TIME
+      - key: RAZORPAY_MODE
+        value: live
+        scope: RUN_TIME
+      - key: RAZORPAY_LIVE_KEY_ID
+        scope: RUN_TIME
+      - key: RAZORPAY_LIVE_KEY_SECRET
+        type: SECRET
+        scope: RUN_TIME
+      - key: RAZORPAY_LIVE_WEBHOOK_SECRET
+        type: SECRET
+        scope: RUN_TIME
+      # Full service-account key JSON (or base64 of it). Never commit it.
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        type: SECRET
+        scope: RUN_TIME
+      - key: DEFAULT_OBJECT_STORAGE_BUCKET_ID
+        scope: RUN_TIME
+      - key: PRIVATE_OBJECT_DIR
+        value: private
+        scope: RUN_TIME
+      - key: RESEND_API_KEY
+        type: SECRET
+        scope: RUN_TIME
+      - key: RESEND_FROM
+        value: Pontreol <notifications@pontreol.com>
+        scope: RUN_TIME
+      - key: NOMINATIM_USER_AGENT
+        value: Pontreol/1.0 (https://pontreol.com)
+        scope: RUN_TIME
+      - key: LOG_LEVEL
+        value: INFO
+        scope: RUN_TIME
+      - key: SLOW_REQUEST_MS
+        value: "500"
+        scope: RUN_TIME
