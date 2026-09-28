@@ -89,7 +89,9 @@ export default function HomePage() {
         {summary && (
           <div className="mt-2 text-xs space-y-2">
             <div>
-              <span className="font-bold">{summary.nearbyListings.length}</span> listings within {RADIUS_KM} km · Tap a pin to preview
+              {summary.nearbyListings.length > 0
+                ? <><span className="font-bold">{summary.nearbyListings.length}</span> {summary.nearbyListings.length === 1 ? "listing" : "listings"} within {RADIUS_KM} km of you · Tap a pin to preview</>
+                : <>What do you need nearby today?</>}
             </div>
             <div className="flex flex-wrap gap-2">
               {summary.categories.map(c => (

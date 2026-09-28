@@ -50,7 +50,10 @@ export default function MyListingsPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="shrink-0 border-b border-border bg-card px-6 py-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">My Listings</h1>
+        <div>
+          <h1 className="text-2xl font-bold">My Listings</h1>
+          <p className="text-xs text-muted-foreground">Earn from what you already own — list it on Pontreol.</p>
+        </div>
         {!isCreating && (
           <button onClick={() => setIsCreating(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium">
             <Plus className="w-4 h-4" /> Create Listing

@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Pontreol",
-  description: "Connect locally for everything you need.",
+  description: "Everything you need, right next door. Rent it, hire it, ride it — nearby.",
 };
 
 export default function RootLayout({

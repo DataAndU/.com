@@ -22,7 +22,8 @@ export default function LandingPage() {
           <div className="flex flex-col items-center text-center mb-10">
             <img src="/logo.svg" alt="Pontreol Logo" className="w-20 h-20 mb-6 drop-shadow-lg" />
             <h1 className="text-3xl font-bold tracking-tight mb-2 uppercase text-white">Pontreol</h1>
-            <p className="text-muted-foreground">Connect locally for everything you need.</p>
+            <p className="text-lg font-medium text-white">Everything you need, right next door.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Rent it. Hire it. Ride it. Nearby. <span className="whitespace-nowrap">· Paas mein sab milega.</span></p>
           </div>
 
           {/* Categories Grid */}
