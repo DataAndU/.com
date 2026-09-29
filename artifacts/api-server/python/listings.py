@@ -24,6 +24,21 @@ REQUIRED = {
     "delivery": {"vehicleType", "maxLoadCapacity", "serviceRadiusKm"},
     "spaces": {"capacity", "spaceType"},
 }
+ROUTE_KEYS = {"originLabel", "originLatitude", "originLongitude",
+              "destinationLabel", "destinationLatitude", "destinationLongitude"}
+# Delivery listings may optionally carry a fixed origin -> destination route.
+OPTIONAL = {"delivery": ROUTE_KEYS}
+
+
+def attribute_keys_ok(category, attrs):
+    keys = set(attrs)
+    return keys == REQUIRED[category] or keys == REQUIRED[category] | OPTIONAL.get(category, set())
+
+
+def route_valid(a):
+    return (all(isinstance(a[x], str) and a[x] for x in ("originLabel", "destinationLabel"))
+            and -90 <= float(a["originLatitude"]) <= 90 and -180 <= float(a["originLongitude"]) <= 180
+            and -90 <= float(a["destinationLatitude"]) <= 90 and -180 <= float(a["destinationLongitude"]) <= 180)
 
 
 class ListingBody(BaseModel):
@@ -41,7 +56,7 @@ class ListingBody(BaseModel):
 
     @model_validator(mode="after")
     def attributes_valid(self):
-        if set(self.attributes) != REQUIRED[self.category]:
+        if not attribute_keys_ok(self.category, self.attributes):
             raise ValueError(f"attributes must contain exactly {sorted(REQUIRED[self.category])}")
         a = self.attributes
         try:
@@ -55,6 +70,7 @@ class ListingBody(BaseModel):
                 if not all(isinstance(a[x], str) and a[x] for x in REQUIRED["equipment"]): raise ValueError
             elif self.category == "delivery":
                 if not isinstance(a["vehicleType"], str) or float(a["maxLoadCapacity"]) < 0 or float(a["serviceRadiusKm"]) < 0: raise ValueError
+                if "originLabel" in a and not route_valid(a): raise ValueError
             elif self.category == "travel":
                 if type(a["seatingCapacity"]) is not int or a["seatingCapacity"] < 1: raise ValueError
                 if type(a["availableSeats"]) is not int or not 0 <= a["availableSeats"] <= a["seatingCapacity"]: raise ValueError
@@ -180,8 +196,15 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
                 radius = min(float(row.attributes["serviceRadiusKm"]), DELIVERY_MAX_RADIUS_KM)
             except (KeyError, TypeError, ValueError):
                 continue
-            if any(point and haversine_km(point[0], point[1], row.latitude, row.longitude) > radius
-                   for point in (pickup, dropoff)):
+            a = row.attributes
+            if "originLatitude" in a:
+                # Fixed route: From must be near its origin and To near its destination.
+                ends = ((pickup, (float(a["originLatitude"]), float(a["originLongitude"]))),
+                        (dropoff, (float(a["destinationLatitude"]), float(a["destinationLongitude"]))))
+            else:
+                ends = ((point, (row.latitude, row.longitude)) for point in (pickup, dropoff))
+            if any(point and haversine_km(point[0], point[1], base[0], base[1]) > radius
+                   for point, base in ends):
                 continue
         distance = None
         if lat is not None and lng is not None:
@@ -215,8 +238,13 @@ def update(listing_id: str, body: ListingPatch, db: Session = Depends(get_db), u
     values = body.model_dump(exclude_unset=True)
     photos = values.pop("photoIds", None)
     attrs = values.get("attributes")
-    if attrs is not None and set(attrs) != REQUIRED[listing.category]:
+    if attrs is not None and not attribute_keys_ok(listing.category, attrs):
         raise HTTPException(422, "Invalid category attributes")
+    if attrs is not None and "originLabel" in attrs:
+        try:
+            if not route_valid(attrs): raise ValueError
+        except (TypeError, ValueError):
+            raise HTTPException(422, "Invalid category attributes")
     mapping = {"pricingMode": "pricing_mode", "locationLabel": "location_label"}
     for key, value in values.items(): setattr(listing, mapping.get(key, key), value)
     if photos is not None:

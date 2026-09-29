@@ -47,7 +47,7 @@ export function ListingForm({ initial, defaultCategory, mutationPending, onSubmi
   const editing = Boolean(initial);
   const initialAttributes = initial?.attributes ?? {};
   const hydratedAttributes =
-    initial?.category === "travel"
+    initial?.category === "travel" || (initial?.category === "delivery" && initialAttributes.originLabel)
       ? {
           ...initialAttributes,
           origin: {
@@ -60,7 +60,7 @@ export function ListingForm({ initial, defaultCategory, mutationPending, onSubmi
             latitude: Number(initialAttributes.destinationLatitude),
             longitude: Number(initialAttributes.destinationLongitude),
           },
-          departureAt: localDateTime(initialAttributes.departureAt),
+          ...(initial?.category === "travel" ? { departureAt: localDateTime(initialAttributes.departureAt) } : {}),
         }
       : initialAttributes;
   const [category, setCategory] = useState<Category>(initial?.category ?? defaultCategory ?? "services");
@@ -145,10 +145,19 @@ export function ListingForm({ initial, defaultCategory, mutationPending, onSubmi
       };
     }
     if (category === "delivery") {
+      const from = attributes.origin as GeocodedLocation | null | undefined;
+      const to = attributes.destination as GeocodedLocation | null | undefined;
+      if (Boolean(from) !== Boolean(to)) throw new Error("Select both the From and To addresses, or leave both empty.");
       return {
         vehicleType: requiredText("vehicleType"),
         maxLoadCapacity: numberAttribute("maxLoadCapacity", 0),
         serviceRadiusKm: numberAttribute("serviceRadiusKm", 0),
+        ...(from && to
+          ? {
+              originLabel: from.label, originLatitude: from.latitude, originLongitude: from.longitude,
+              destinationLabel: to.label, destinationLatitude: to.latitude, destinationLongitude: to.longitude,
+            }
+          : {}),
       };
     }
     const origin = attributes.origin as GeocodedLocation | undefined;
@@ -271,7 +280,18 @@ export function ListingForm({ initial, defaultCategory, mutationPending, onSubmi
       return <>{input("equipmentType", "Equipment type")}{input("condition", "Condition")}{input("fuelType", "Fuel or power type")}</>;
     }
     if (category === "delivery") {
-      return <>{input("vehicleType", "Vehicle type")}{input("maxLoadCapacity", "Maximum load (kg)", { type: "number", min: 0, step: "any" })}{input("serviceRadiusKm", "Service radius (km)", { type: "number", min: 0, step: "any" })}</>;
+      return (
+        <>
+          {input("vehicleType", "Vehicle type")}
+          {input("maxLoadCapacity", "Maximum load (kg)", { type: "number", min: 0, step: "any" })}
+          {input("serviceRadiusKm", "Service radius (km)", { type: "number", min: 0, step: "any" })}
+          <p className="text-xs text-muted-foreground">Optional: a regular route. Customers are matched when their pickup is near From and drop-off near To (within the service radius).</p>
+          <AddressSearch label="From (origin)" allowGps={false} value={(attributes.origin as GeocodedLocation) ?? null}
+            onChange={(value) => setAttributes((current) => ({ ...current, origin: value }))} />
+          <AddressSearch label="To (destination)" allowGps={false} value={(attributes.destination as GeocodedLocation) ?? null}
+            onChange={(value) => setAttributes((current) => ({ ...current, destination: value }))} />
+        </>
+      );
     }
     const initialAttrs = initial?.category === "travel" ? initial.attributes : {};
     return (

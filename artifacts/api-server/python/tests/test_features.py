@@ -406,3 +406,36 @@ def test_delivery_search_requires_service_area_to_cover_from_and_to(people, make
     first = buyer.get("/api/listings?category=delivery&pickupLat=12.935&pickupLng=77.624"
                       "&dropoffLat=12.97&dropoffLng=77.64&sort=distance").json()["items"][0]
     assert first["id"] == "d-wide" and first["distanceKm"] < 0.5
+
+
+def test_delivery_listing_with_route_matches_from_origin_to_destination(people, maker):
+    prov, buyer = people["prov"], people["buyer"]
+    base = {"category": "delivery", "title": "Bengaluru to Mysuru", "description": "Daily parcel run to Mysuru",
+            "price": 500, "pricingMode": "fixed", "locationLabel": "Koramangala",
+            "latitude": 12.935, "longitude": 77.624}
+    attrs = {"vehicleType": "Van", "maxLoadCapacity": 300, "serviceRadiusKm": 10}
+    route = {"originLabel": "Koramangala", "originLatitude": 12.935, "originLongitude": 77.624,
+             "destinationLabel": "Mysuru", "destinationLatitude": 12.30, "destinationLongitude": 76.64}
+    # Partial routes and bad coordinates are rejected; no route stays valid.
+    assert prov.post("/api/listings", json={**base, "attributes": {**attrs, "originLabel": "x"}}, headers=SAME).status_code == 422
+    assert prov.post("/api/listings", json={**base, "attributes": {**attrs, **route, "originLatitude": 99}}, headers=SAME).status_code == 422
+    created = prov.post("/api/listings", json={**base, "attributes": {**attrs, **route}}, headers=SAME)
+    assert created.status_code in (200, 201), created.text
+    listing_id = created.json()["id"]
+    if created.json()["status"] != "active":
+        with maker() as db:
+            db.get(Listing, listing_id).status = "active"
+            db.commit()
+
+    def ids(**params):
+        query = "&".join(f"{k}={v}" for k, v in {"category": "delivery", **params}.items())
+        return [x["id"] for x in buyer.get(f"/api/listings?{query}").json()["items"]]
+
+    # Koramangala -> Mysuru matches the route (Mysuru is far outside the 10 km radius)
+    assert listing_id in ids(pickupLat=12.94, pickupLng=77.62, dropoffLat=12.31, dropoffLng=76.65)
+    # Reverse direction and off-route drop-off do not match
+    assert listing_id not in ids(pickupLat=12.31, pickupLng=76.65, dropoffLat=12.94, dropoffLng=77.62)
+    assert listing_id not in ids(pickupLat=12.94, pickupLng=77.62, dropoffLat=13.34, dropoffLng=77.10)
+    # Editing can remove the route
+    patched = prov.patch(f"/api/listings/{listing_id}", json={"attributes": attrs}, headers=SAME)
+    assert patched.status_code == 200
