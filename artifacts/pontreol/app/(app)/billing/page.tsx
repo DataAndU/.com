@@ -98,6 +98,11 @@ export default function BillingPage() {
           <p className="text-muted-foreground">Manage your subscription and billing history.</p>
         </div>
 
+        {plansData && !plansData.checkoutAvailable && !statusData?.subscription && (
+          <div className="mb-6 p-4 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm">
+            Subscribing is switched off: {(plansData as { checkoutProblem?: string }).checkoutProblem ?? "Razorpay is not configured."}
+          </div>
+        )}
         {errorMsg && (
           <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-xl flex items-center gap-3 animate-fade-in">
             <AlertCircle className="w-5 h-5 shrink-0" />

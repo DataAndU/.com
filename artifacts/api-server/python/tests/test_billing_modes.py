@@ -38,7 +38,7 @@ def test_invalid_mode_and_wrong_key_prefix_fail_closed(monkeypatch):
     monkeypatch.setenv("RAZORPAY_LIVE_KEY_SECRET", "secret")
     with pytest.raises(HTTPException) as wrong_prefix:
         billing.credentials()
-    assert wrong_prefix.value.status_code == 503
+    assert wrong_prefix.value.status_code == 424
 
 
 def test_live_checkout_requires_distinct_webhook_configuration(monkeypatch):
@@ -48,7 +48,7 @@ def test_live_checkout_requires_distinct_webhook_configuration(monkeypatch):
     monkeypatch.delenv("RAZORPAY_LIVE_WEBHOOK_SECRET", raising=False)
     with pytest.raises(HTTPException) as missing:
         billing.credentials(require_webhook=True)
-    assert missing.value.status_code == 503
+    assert missing.value.status_code == 424
     assert "webhook" in missing.value.detail.lower()
 
 

@@ -63,9 +63,9 @@ def credentials(require_webhook=False):
     webhook_secret = os.getenv(prefix + "_WEBHOOK_SECRET", "")
     expected_prefix = "rzp_live_" if mode == "live" else "rzp_test_"
     if not key.startswith(expected_prefix) or not secret:
-        raise HTTPException(503, f"Razorpay {mode.upper()} credentials are not configured correctly. Free access remains available.")
+        raise HTTPException(424, f"Razorpay {mode.upper()} credentials are not configured correctly. Free access remains available.")
     if require_webhook and not webhook_secret:
-        raise HTTPException(503, f"Razorpay {mode.upper()} webhook secret must be configured before checkout")
+        raise HTTPException(424, f"Razorpay {mode.upper()} webhook secret must be configured before checkout")
     return key, secret
 
 
@@ -190,14 +190,15 @@ def discount_amount(plan, discount, at):
 
 @router.get("/billing/plans")
 def plans(db: Session = Depends(get_db), user=Depends(current_user)):
-    available = True
+    # 424 (not 503) above: App Platform replaces 503 bodies with its own page.
+    available, problem = True, None
     try:
         credentials(require_webhook=billing_mode() == "live")
-    except HTTPException:
-        available = False
+    except HTTPException as exc:
+        available, problem = False, exc.detail
     return dict(plans=[plan_json(p) for p in db.scalars(select(BillingPlan).where(
         BillingPlan.active.is_(True), BillingPlan.role == user.role))],
-        testMode=billing_mode() == "test", checkoutAvailable=available)
+        testMode=billing_mode() == "test", checkoutAvailable=available, checkoutProblem=problem)
 
 
 @router.get("/billing/status")
