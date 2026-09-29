@@ -371,3 +371,38 @@ def test_moving_bundle_payloads_are_accepted(people, maker):
     assert helper.status_code == 201, helper.text
     mine = buyer.get("/api/bookings").json()["items"]
     assert {b["category"] for b in mine} == {"delivery", "services"}
+
+
+# --- Delivery: From -> To search -------------------------------------------------------
+
+def test_delivery_search_requires_service_area_to_cover_from_and_to(people, maker):
+    with maker() as db:
+        # Koramangala tempo covering 15 km; Whitefield bike covering 5 km.
+        db.add(Listing(id="d-wide", provider_id="prov", category="delivery", title="Tempo 15km",
+                       description="Local house shifting", price=900, pricing_mode="fixed",
+                       location_label="Koramangala", latitude=12.935, longitude=77.624,
+                       attributes={"vehicleType": "Tempo", "maxLoadCapacity": 750, "serviceRadiusKm": 15}))
+        db.add(Listing(id="d-small", provider_id="prov2", category="delivery", title="Bike 5km",
+                       description="Small parcel delivery", price=100, pricing_mode="fixed",
+                       location_label="Whitefield", latitude=12.969, longitude=77.750,
+                       attributes={"vehicleType": "Bike", "maxLoadCapacity": 10, "serviceRadiusKm": 5}))
+        db.commit()
+    buyer = people["buyer"]
+
+    def ids(**params):
+        query = "&".join(f"{k}={v}" for k, v in {"category": "delivery", **params}.items())
+        response = buyer.get(f"/api/listings?{query}")
+        assert response.status_code == 200, response.text
+        return [item["id"] for item in response.json()["items"]]
+
+    # Koramangala -> Indiranagar (both within 15 km of the tempo; far from the bike)
+    assert ids(pickupLat=12.935, pickupLng=77.62, dropoffLat=12.97, dropoffLng=77.64) == ["d-wide"]
+    # Whitefield -> nearby Whitefield (bike covers it; tempo 15 km radius also reaches ~13 km)
+    near_wf = ids(pickupLat=12.97, pickupLng=77.745, dropoffLat=12.975, dropoffLng=77.73, sort="distance")
+    assert near_wf[0] == "d-small"
+    # Koramangala -> Mysuru (140 km): nobody covers the drop-off
+    assert ids(pickupLat=12.935, pickupLng=77.62, dropoffLat=12.30, dropoffLng=76.64) == []
+    # Distance is reported from the pickup point
+    first = buyer.get("/api/listings?category=delivery&pickupLat=12.935&pickupLng=77.624"
+                      "&dropoffLat=12.97&dropoffLng=77.64&sort=distance").json()["items"][0]
+    assert first["id"] == "d-wide" and first["distanceKm"] < 0.5

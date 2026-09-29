@@ -28,6 +28,8 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
   const [distanceKm, setDistanceKm] = useState("50");
   
   const [travelOrigin, setTravelOrigin] = useState("");
+  const [deliveryFrom, setDeliveryFrom] = useState("");
+  const [deliveryTo, setDeliveryTo] = useState("");
   const [travelDest, setTravelDest] = useState("");
   const [departureFrom, setDepartureFrom] = useState("");
   const [departureTo, setDepartureTo] = useState("");
@@ -56,7 +58,27 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
     if (priceMin) newFilters.priceMin = priceMin;
     if (priceMax) newFilters.priceMax = priceMax;
     
-    if (activeCategory !== "travel") {
+    if (activeCategory === "delivery" && (deliveryFrom.trim().length >= 3 || deliveryTo.trim().length >= 3)) {
+      // Delivery: both ends must be inside the provider's service area.
+      const lookup = (query: string) =>
+        query.trim().length >= 3
+          ? fetchApi<{ results: { latitude: number; longitude: number }[] }>(`/geocode?q=${encodeURIComponent(query.trim())}`)
+          : Promise.resolve(null);
+      const ends = await Promise.allSettled([lookup(deliveryFrom), lookup(deliveryTo)]);
+      const names = ["From", "To"] as const;
+      const keys = [["pickupLat", "pickupLng"], ["dropoffLat", "dropoffLng"]] as const;
+      for (let i = 0; i < 2; i++) {
+        const text = i === 0 ? deliveryFrom : deliveryTo;
+        if (text.trim().length < 3) continue;
+        const r = ends[i];
+        if (r.status === "rejected" || !r.value?.results?.length) {
+          setGeocodeError(`Could not find the ${names[i]} address "${text}".`);
+          return;
+        }
+        newFilters[keys[i][0]] = r.value.results[0].latitude.toString();
+        newFilters[keys[i][1]] = r.value.results[0].longitude.toString();
+      }
+    } else if (activeCategory !== "travel") {
       if (address && address.length >= 3) {
         try {
           const data = await fetchApi<{ results: { latitude: number; longitude: number }[] }>(`/geocode?q=${encodeURIComponent(address)}`);
@@ -163,7 +185,13 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
             
             <div className="w-px h-6 bg-border mx-1"></div>
             
-            {activeCategory !== "travel" ? (
+            {activeCategory === "delivery" ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium uppercase">Deliver:</span>
+                <input type="text" placeholder="From..." value={deliveryFrom} onChange={e=>setDeliveryFrom(e.target.value)} className="w-28 h-8 bg-input border border-border rounded px-2 text-xs" />
+                <input type="text" placeholder="To..." value={deliveryTo} onChange={e=>setDeliveryTo(e.target.value)} className="w-28 h-8 bg-input border border-border rounded px-2 text-xs" />
+              </div>
+            ) : activeCategory !== "travel" ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground font-medium uppercase">Location:</span>
                 <input type="text" placeholder="City or area..." value={address} onChange={e=>setAddress(e.target.value)} className="w-32 h-8 bg-input border border-border rounded px-2 text-xs" />

@@ -131,7 +131,11 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
            destinationLat: float | None = Query(None, ge=-90, le=90),
            destinationLng: float | None = Query(None, ge=-180, le=180),
            departureFrom: datetime | None = None, departureTo: datetime | None = None,
-           seats: int | None = Query(None, ge=1)):
+           seats: int | None = Query(None, ge=1),
+           pickupLat: Annotated[float | None, Query(ge=-90, le=90)] = None,
+           pickupLng: Annotated[float | None, Query(ge=-180, le=180)] = None,
+           dropoffLat: Annotated[float | None, Query(ge=-90, le=90)] = None,
+           dropoffLng: Annotated[float | None, Query(ge=-180, le=180)] = None):
     if category and category not in CATEGORIES:
         raise HTTPException(422, "Unknown category")
     stmt = select(Listing).where(Listing.status == "active")
@@ -143,6 +147,11 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
     if priceMax is not None: stmt = stmt.where(Listing.price <= priceMax)
     if lat is not None and lng is not None:
         stmt = stmt.where(bounding_box(lat, lng, distanceKm))
+    pickup = (pickupLat, pickupLng) if pickupLat is not None and pickupLng is not None else None
+    dropoff = (dropoffLat, dropoffLng) if dropoffLat is not None and dropoffLng is not None else None
+    if pickup and lat is None:
+        # Delivery providers are local: only look within DELIVERY_MAX_RADIUS_KM of pickup.
+        stmt = stmt.where(bounding_box(pickup[0], pickup[1], DELIVERY_MAX_RADIUS_KM))
     if sort == "priceLow": stmt = stmt.order_by(Listing.price)
     elif sort == "priceHigh": stmt = stmt.order_by(Listing.price.desc())
     elif sort not in {"relevance", "distance"}: raise HTTPException(422, "Unknown sort")
@@ -165,13 +174,25 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
                         (float(attrs["destinationLongitude"])-destinationLng)**2) > distanceKm: continue
             except (KeyError, TypeError, ValueError):
                 continue
+        if row.category == "delivery" and (pickup or dropoff):
+            # From -> To: the provider's service area must cover both addresses.
+            try:
+                radius = min(float(row.attributes["serviceRadiusKm"]), DELIVERY_MAX_RADIUS_KM)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if any(point and haversine_km(point[0], point[1], row.latitude, row.longitude) > radius
+                   for point in (pickup, dropoff)):
+                continue
         distance = None
         if lat is not None and lng is not None:
             distance = haversine_km(lat, lng, row.latitude, row.longitude)
             if distance > distanceKm: continue
+        elif pickup:
+            distance = haversine_km(pickup[0], pickup[1], row.latitude, row.longitude)
         output.append((row, distance))
     if sort == "distance":
-        if lat is None or lng is None: raise HTTPException(422, "Coordinates required for distance sort")
+        if (lat is None or lng is None) and not pickup:
+            raise HTTPException(422, "Coordinates required for distance sort")
         output.sort(key=lambda x: x[1])
     return {"items": listings_json(db, output[:limit]), "nextCursor": None}
 
@@ -214,6 +235,7 @@ def delete(listing_id: str, db: Session = Depends(get_db), user=Depends(require_
 EARTH_RADIUS_KM = 6371.0
 KM_PER_DEGREE_LAT = 111.32
 HOME_MAX_RESULTS = 200
+DELIVERY_MAX_RADIUS_KM = 200.0
 
 
 def haversine_km(lat1, lng1, lat2, lng2):

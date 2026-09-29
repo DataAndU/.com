@@ -10,6 +10,7 @@ import { useState } from "react";
 import { MapPin, MessageSquare, Star, ArrowLeft } from "lucide-react";
 import { ShareListing } from "@/components/share-listing";
 import { ProviderBadges } from "@/components/provider-badges";
+import { AddressSearch, type GeocodedLocation } from "@/components/address-search";
 
 export default function ListingDetailPage() {
   // Next 16 passes `params` to pages as a Promise; read route params via the hook.
@@ -39,10 +40,8 @@ export default function ListingDetailPage() {
   const deliveryBooking = useCreateDeliveryBooking();
   const [pickupAt, setPickupAt] = useState("");
   const [itemDesc, setItemDesc] = useState("");
-  const [pickupLat, setPickupLat] = useState("");
-  const [pickupLng, setPickupLng] = useState("");
-  const [dropoffLat, setDropoffLat] = useState("");
-  const [dropoffLng, setDropoffLng] = useState("");
+  const [deliveryFrom, setDeliveryFrom] = useState<GeocodedLocation | null>(null);
+  const [deliveryTo, setDeliveryTo] = useState<GeocodedLocation | null>(null);
 
   // Travel
   const travelBooking = useCreateTravelBooking();
@@ -114,33 +113,18 @@ export default function ListingDetailPage() {
     setBookingError("");
     if (!pickupAt || isNaN(new Date(pickupAt).getTime())) return setBookingError("Invalid pickup date");
     if (!itemDesc.trim()) return setBookingError("Item description is required");
-    if (!pickupLat.trim() || !dropoffLat.trim()) return setBookingError("Pickup and Dropoff addresses are required");
-
-    // We assume pickupLat and dropoffLat are used as the address labels for input to avoid creating too many states. Let's rename visually in UI.
-    try {
-      // Pickup and dropoff are independent lookups; resolve them in parallel.
-      const [pRes, dRes] = await Promise.all([
-        fetch(`/api/geocode?q=${encodeURIComponent(pickupLat)}`).then(r => r.json()),
-        fetch(`/api/geocode?q=${encodeURIComponent(dropoffLat)}`).then(r => r.json()),
-      ]);
-      
-      if (!pRes?.results?.[0]) return setBookingError("Pickup address not found");
-      if (!dRes?.results?.[0]) return setBookingError("Dropoff address not found");
-
-      deliveryBooking.mutate({ 
-        listingId: listing.id, 
-        pickupAt: new Date(pickupAt).toISOString(), 
-        itemDescription: itemDesc, 
-        pickup: { label: pickupLat, latitude: pRes.results[0].latitude, longitude: pRes.results[0].longitude },
-        dropoff: { label: dropoffLat, latitude: dRes.results[0].latitude, longitude: dRes.results[0].longitude },
-        note: bookingNote 
-      }, {
-        onSuccess: () => router.push("/requests"),
-        onError: (err) => setBookingError(err.message)
-      });
-    } catch (err: any) {
-      setBookingError(err.message);
-    }
+    if (!deliveryFrom || !deliveryTo) return setBookingError("Search and pick both a From and a To address");
+    deliveryBooking.mutate({
+      listingId: listing.id,
+      pickupAt: new Date(pickupAt).toISOString(),
+      itemDescription: itemDesc,
+      pickup: deliveryFrom,
+      dropoff: deliveryTo,
+      note: bookingNote
+    }, {
+      onSuccess: () => router.push("/requests"),
+      onError: (err) => setBookingError(err.message)
+    });
   };
 
   const handleBookTravel = () => {
@@ -337,14 +321,8 @@ export default function ListingDetailPage() {
                         <input type="text" value={itemDesc} onChange={e=>setItemDesc(e.target.value)} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                       <div className="grid grid-cols-1 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium mb-1">Pickup Address</label>
-                          <input type="text" placeholder="Full pickup address..." value={pickupLat} onChange={e=>setPickupLat(e.target.value)} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm mb-1" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1">Dropoff Address</label>
-                          <input type="text" placeholder="Full dropoff address..." value={dropoffLat} onChange={e=>setDropoffLat(e.target.value)} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm mb-1" />
-                        </div>
+                        <AddressSearch label="From" value={deliveryFrom} onChange={setDeliveryFrom} />
+                        <AddressSearch label="To" value={deliveryTo} onChange={setDeliveryTo} allowGps={false} />
                       </div>
                       <div>
                         <label className="block text-xs font-medium mb-1">Note to Provider</label>
@@ -352,7 +330,7 @@ export default function ListingDetailPage() {
                       </div>
                       <button 
                         onClick={handleBookDelivery}
-                        disabled={deliveryBooking.isPending || !pickupAt || !itemDesc || !pickupLat || !dropoffLat}
+                        disabled={deliveryBooking.isPending || !pickupAt || !itemDesc || !deliveryFrom || !deliveryTo}
                         className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-bold hover:bg-primary/90 disabled:opacity-50 transition-colors"
                       >
                         {deliveryBooking.isPending ? "Requesting..." : "Request Delivery"}
