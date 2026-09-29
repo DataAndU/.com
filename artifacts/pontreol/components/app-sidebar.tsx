@@ -23,25 +23,27 @@ import { AccountMenu } from "@/components/account-menu";
 import { AvailabilityToggle } from "@/components/availability-toggle";
 
 import { useMe } from "@/lib/api/account";
+import { LanguagePicker, useT } from "@/lib/i18n";
 
 const routes = [
-  { name: "Map", path: "/home", icon: MapPin },
-  { name: "Categories", path: "/categories", icon: Grid },
-  { name: "Discover", path: "/discover", icon: Search },
-  { name: "My Listings", path: "/listings", icon: List, providerOnly: true },
-  { name: "Requests", path: "/requests", icon: Inbox },
-  { name: "Messages", path: "/messages", icon: MessageSquare },
-  { name: "Notifications", path: "/notifications", icon: Bell },
-  { name: "Poster", path: "/poster", icon: QrCode },
-  { name: "Settings", path: "/settings", icon: Settings },
-  { name: "Billing", path: "/billing", icon: CreditCard },
-  { name: "Admin", path: "/admin", icon: ShieldAlert, adminOnly: true },
+  { name: "Map", key: "nav.map" as const, path: "/home", icon: MapPin },
+  { name: "Categories", key: "nav.categories" as const, path: "/categories", icon: Grid },
+  { name: "Discover", key: "nav.discover" as const, path: "/discover", icon: Search },
+  { name: "My Listings", key: "nav.myListings" as const, path: "/listings", icon: List, providerOnly: true },
+  { name: "Requests", key: "nav.requests" as const, path: "/requests", icon: Inbox },
+  { name: "Messages", key: "nav.messages" as const, path: "/messages", icon: MessageSquare },
+  { name: "Notifications", key: "nav.notifications" as const, path: "/notifications", icon: Bell },
+  { name: "Poster", key: "nav.poster" as const, path: "/poster", icon: QrCode },
+  { name: "Settings", key: "nav.settings" as const, path: "/settings", icon: Settings },
+  { name: "Billing", key: "nav.billing" as const, path: "/billing", icon: CreditCard },
+  { name: "Admin", key: "nav.admin" as const, path: "/admin", icon: ShieldAlert, adminOnly: true },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: user } = useMe();
+  const t = useT();
 
   return (
     <>
@@ -89,17 +91,18 @@ export function AppSidebar() {
                 )}
               >
                 <route.icon className="w-5 h-5" />
-                {route.name}
+                {t(route.key)}
               </Link>
             );
           })}
         </div>
 
+        <div className="px-4 pb-4"><LanguagePicker className="w-full" /></div>
         <div className="p-4 border-t border-border hidden md:flex items-center gap-3">
           <AccountMenu size={10} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">Account</p>
-            <p className="text-xs text-muted-foreground truncate">Manage profile</p>
+            <p className="text-sm font-medium text-white truncate">{t("account")}</p>
+            <p className="text-xs text-muted-foreground truncate">{t("manageProfile")}</p>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { LanguagePicker, useT } from "@/lib/i18n";
 
 type Step = "email" | "code";
 
@@ -35,6 +36,7 @@ function errorFor(data: any) {
 
 /** Server-rendered email step; the code step appears after "Continue". */
 export function EmailSignIn({ mode, next, referral }: { mode: "sign in" | "sign up"; next?: string; referral?: string }) {
+  const t = useT();
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -111,7 +113,7 @@ export function EmailSignIn({ mode, next, referral }: { mode: "sign in" | "sign 
 
         {step === "email" ? (
           <form onSubmit={sendCode} className="mt-6 text-left" noValidate>
-            <label htmlFor="email" className="mb-1.5 block text-sm text-gray-300">Email address</label>
+            <label htmlFor="email" className="mb-1.5 block text-sm text-gray-300">{t("emailAddress")}</label>
             <input id="email" name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none"
               spellCheck={false} required value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com" className={input} data-testid="input-email" />
@@ -123,7 +125,7 @@ export function EmailSignIn({ mode, next, referral }: { mode: "sign in" | "sign 
         ) : (
           <form onSubmit={verify} className="mt-6 text-left">
             {notice && <p className="mb-4 text-sm text-gray-400" role="status">{notice}</p>}
-            <label htmlFor="code" className="mb-1.5 block text-sm text-gray-300">Verification code</label>
+            <label htmlFor="code" className="mb-1.5 block text-sm text-gray-300">{t("verificationCode")}</label>
             <input ref={codeInput} id="code" name="code" type="text" inputMode="numeric" autoComplete="one-time-code"
               pattern="[0-9]*" maxLength={6} required value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}

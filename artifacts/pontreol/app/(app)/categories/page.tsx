@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 import { Wrench, Home, Truck, Compass, ArrowRight } from "lucide-react";
 
 const CATEGORIES = [
@@ -11,11 +12,12 @@ const CATEGORIES = [
 ];
 
 export default function CategoriesPage() {
+  const t = useT();
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="border-b border-border bg-card px-6 py-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-2">Categories</h1>
+          <h1 className="text-3xl font-bold mb-2">{t("nav.categories")}</h1>
           <p className="text-muted-foreground">Browse local availability or offer your own.</p>
         </div>
       </div>
@@ -39,7 +41,7 @@ export default function CategoriesPage() {
                 <cat.icon className="w-6 h-6" />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold mb-1 group-hover:text-primary transition-colors">{cat.name}</h3>
+                <h3 className="text-lg font-semibold mb-1 group-hover:text-primary transition-colors">{t(`cat.${cat.id}` as "cat.services")}</h3>
                 <p className="text-sm text-muted-foreground">{cat.description}</p>
               </div>
               <div className="mt-auto flex items-center text-xs font-medium text-primary uppercase tracking-wider">
