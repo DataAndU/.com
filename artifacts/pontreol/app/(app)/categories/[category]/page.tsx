@@ -9,7 +9,7 @@ import { useCreateListing } from "@/lib/api/listings";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-const VALID_CATEGORIES = ["services", "spaces", "equipment", "delivery", "travel"] as const;
+const VALID_CATEGORIES = ["services", "spaces", "delivery", "travel"] as const;
 type CategoryId = typeof VALID_CATEGORIES[number];
 
 export default function CategoryPage() {

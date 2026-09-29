@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Wrench, Home, Package, Truck, Compass, ArrowRight } from "lucide-react";
+import { Wrench, Home, Truck, Compass, ArrowRight } from "lucide-react";
 
 const CATEGORIES = [
   { id: "services", name: "Services", description: "Find skilled professionals and local services", icon: Wrench },
   { id: "spaces", name: "Spaces", description: "Book rooms, venues, and storage spaces", icon: Home },
-  { id: "equipment", name: "Equipment", description: "Rent tools, machinery, and gear", icon: Package },
   { id: "delivery", name: "Delivery", description: "Local transport and moving services", icon: Truck },
   { id: "travel", name: "Travel", description: "Rideshares and trips", icon: Compass },
 ];

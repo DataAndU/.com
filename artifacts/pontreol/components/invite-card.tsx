@@ -10,7 +10,7 @@ export function InviteCard() {
   const [copied, setCopied] = useState(false);
   if (!data) return null;
   const link = `${window.location.origin}${data.path}`;
-  const message = `Join me on Pontreol — list your services, equipment or space and get local customers. Sign up here: ${link}`;
+  const message = `Join me on Pontreol — list your services, space, delivery or travel and get local customers. Sign up here: ${link}`;
   return (
     <section className="rounded-xl border border-border bg-card p-6" data-testid="card-invite">
       <div className="flex items-center gap-3">

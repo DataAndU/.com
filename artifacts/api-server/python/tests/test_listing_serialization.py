@@ -126,7 +126,7 @@ def test_home_counts_all_active_but_serializes_first_hundred_only(data):
     assert len(sql) == 4
     assert result["totalListings"] == 119
     assert result["categories"] == [
-        {"category": "delivery", "count": 0}, {"category": "equipment", "count": 0},
+        {"category": "delivery", "count": 0},
         {"category": "services", "count": 60}, {"category": "spaces", "count": 59},
         {"category": "travel", "count": 0},
     ]

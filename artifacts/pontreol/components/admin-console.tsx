@@ -179,7 +179,7 @@ function BannerManager() {
     <Panel title="Home banner (festivals & announcements)" loading={list.isLoading} error={list.error}>
       <form className="grid gap-3 rounded-xl border border-border bg-card p-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
         <input className={inputClass} required minLength={3} maxLength={200} placeholder="e.g. Diwali: rent party lights & speakers nearby!" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
-        <input className={inputClass} placeholder="Optional link inside Pontreol, e.g. /categories/equipment" value={form.linkPath} onChange={(e) => setForm({ ...form, linkPath: e.target.value })} />
+        <input className={inputClass} placeholder="Optional link inside Pontreol, e.g. /categories/services" value={form.linkPath} onChange={(e) => setForm({ ...form, linkPath: e.target.value })} />
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-xs text-muted-foreground">Starts<input type="datetime-local" className={inputClass} value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} /></label>
           <label className="text-xs text-muted-foreground">Ends<input type="datetime-local" className={inputClass} value={form.endsAt} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} /></label>

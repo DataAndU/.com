@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { Hammer, LayoutGrid, Box, Car, Building2, ChevronRight } from "lucide-react";
+import { Hammer, Box, Car, Building2, ChevronRight } from "lucide-react";
 
 // Visitors with a session cookie are sent to /home by middleware.
 export default function LandingPage() {
   const categories = [
     { icon: Hammer, label: "Services" },
-    { icon: LayoutGrid, label: "Equipment" },
     { icon: Box, label: "Delivery" },
     { icon: Car, label: "Travel" },
     { icon: Building2, label: "Spaces" },

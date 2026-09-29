@@ -54,7 +54,7 @@ Poster page's QR), so every sign-up counts toward your referral credits.
 ## Festival banners (Admin → Banner)
 | When | Message | Link |
 |---|---|---|
-| Diwali (2 weeks before) | Diwali: rent party lights, speakers & decor nearby! 🪔 | `/categories/equipment` |
+| Diwali (2 weeks before) | Diwali: book decorators, halls and cooks nearby! 🪔 | `/categories/services` |
 | Wedding season (Nov–Feb) | Wedding season: halls, tempos and cooks near you 💍 | `/categories/spaces` |
 | Month-end moving (25th–5th) | Moving this month? Tempo + helpers in one go 📦 | `/bundles/moving` |
 | Monsoon (Jun–Sep) | Monsoon repairs: plumbers & electricians available now ☔ | `/categories/services` |

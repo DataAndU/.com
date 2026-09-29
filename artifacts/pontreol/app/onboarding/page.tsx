@@ -70,7 +70,7 @@ export default function OnboardingPage() {
               </div>
               <div className="text-center">
                 <span className="font-semibold text-foreground block mb-1">Buyer</span>
-                <span className="text-xs text-muted-foreground">Find equipment, services, and spaces</span>
+                <span className="text-xs text-muted-foreground">Find services, spaces, delivery and travel</span>
               </div>
             </button>
             <button 

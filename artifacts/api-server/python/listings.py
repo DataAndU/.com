@@ -14,7 +14,8 @@ from deps import current_user, get_db, require_role
 from models import GeocodeCache, Listing, ListingMedia, Media, User
 
 router = APIRouter()
-CATEGORIES = {"services", "spaces", "equipment", "delivery", "travel"}
+# Equipment was retired: old rows stay in the database but are no longer listed or creatable.
+CATEGORIES = {"services", "spaces", "delivery", "travel"}
 REQUIRED = {
     "equipment": {"equipmentType", "condition", "fuelType"},
     "services": {"serviceType", "experienceYears", "onSiteOrRemote"},
@@ -42,7 +43,7 @@ def route_valid(a):
 
 
 class ListingBody(BaseModel):
-    category: Literal["services", "spaces", "equipment", "delivery", "travel"]
+    category: Literal["services", "spaces", "delivery", "travel"]
     title: str = Field(min_length=3, max_length=120)
     description: str = Field(min_length=10, max_length=4000)
     price: float = Field(ge=0)
@@ -154,7 +155,7 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
            dropoffLng: Annotated[float | None, Query(ge=-180, le=180)] = None):
     if category and category not in CATEGORIES:
         raise HTTPException(422, "Unknown category")
-    stmt = select(Listing).where(Listing.status == "active")
+    stmt = select(Listing).where(Listing.status == "active", Listing.category.in_(CATEGORIES))
     if category: stmt = stmt.where(Listing.category == category)
     if search:
         term = f"%{search[:100]}%"
@@ -322,7 +323,7 @@ def home(db: Session = Depends(get_db), user=Depends(current_user),
         select(Listing.category, func.count()).where(
             Listing.status == "active").group_by(Listing.category))}
     categories = [{"category": x, "count": counts.get(x, 0)} for x in sorted(CATEGORIES)]
-    stmt = select(Listing).where(Listing.status == "active")
+    stmt = select(Listing).where(Listing.status == "active", Listing.category.in_(CATEGORIES))
     nearby = []
     if lat is not None and lng is not None:
         # Nearest-first by a cheap planar approximation so LIMIT keeps the

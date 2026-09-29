@@ -155,7 +155,6 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                   <option value="">All Categories</option>
                   <option value="services">Services</option>
                   <option value="spaces">Spaces</option>
-                  <option value="equipment">Equipment</option>
                   <option value="delivery">Delivery</option>
                   <option value="travel">Travel</option>
                 </select>
