@@ -38,6 +38,8 @@ const en = {
   "nav.requests": "Bookings",
   "nav.messages": "Chats",
   "nav.notifications": "Alerts",
+  // Unused now, but kept: each language row below is matched by position.
+  "nav.poster": "Poster",
   "nav.settings": "Settings",
   "nav.billing": "Plans",
   "nav.admin": "Admin",

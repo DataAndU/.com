@@ -6,15 +6,15 @@ import { cn } from "@/lib/utils";
 import { Compass, Plus, Inbox, UserRound } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
 import { AvailabilityToggle } from "@/components/availability-toggle";
-import { LanguagePicker } from "@/lib/i18n";
+import { LanguagePicker, useT } from "@/lib/i18n";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 // Four destinations only. Secondary screens live inside Inbox and Profile.
 const TABS = [
-  { label: "Explore", path: "/home", icon: Compass, match: ["/home", "/discover", "/providers", "/bundles"] },
-  { label: "Post", path: "/listings?new=1", icon: Plus, match: ["/listings"], primary: true },
-  { label: "Inbox", path: "/messages", icon: Inbox, match: ["/messages", "/requests", "/notifications"] },
-  { label: "Profile", path: "/settings", icon: UserRound, match: ["/settings", "/billing", "/admin", "/verification", "/safety"] },
+  { label: "explore" as const, path: "/home", icon: Compass, match: ["/home", "/discover", "/providers", "/bundles"] },
+  { label: "post" as const, path: "/listings?new=1", icon: Plus, match: ["/listings"], primary: true },
+  { label: "inbox" as const, path: "/messages", icon: Inbox, match: ["/messages", "/requests", "/notifications"] },
+  { label: "profile" as const, path: "/settings", icon: UserRound, match: ["/settings", "/billing", "/admin", "/verification", "/safety"] },
 ];
 
 function isActive(pathname: string, match: string[]) {
@@ -23,6 +23,7 @@ function isActive(pathname: string, match: string[]) {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const t = useT();
 
   return (
     <>
@@ -50,7 +51,7 @@ export function AppSidebar() {
                   tab.primary ? "bg-primary text-primary-foreground hover:bg-primary/90"
                     : active ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground")}>
                 <tab.icon className="w-5 h-5" />
-                {tab.primary ? "Post availability" : tab.label}
+                {tab.primary ? t("postAvailability") : t(tab.label)}
               </Link>
             );
           })}
@@ -70,7 +71,7 @@ export function AppSidebar() {
                 {tab.primary
                   ? <span className="flex h-7 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground"><tab.icon className="w-5 h-5" /></span>
                   : <tab.icon className="w-6 h-6" />}
-                <span>{tab.primary ? "+ Post" : tab.label}</span>
+                <span>{tab.primary ? `+ ${t("post")}` : t(tab.label)}</span>
               </Link>
             );
           })}

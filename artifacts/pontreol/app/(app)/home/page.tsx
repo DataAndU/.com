@@ -10,6 +10,7 @@ import type { HomeSummary, MapPin } from "@/lib/api/listings";
 import { useUserLocation } from "@/lib/geolocation";
 import { availabilityText, CATEGORY_LABEL, distanceText, priceText } from "@/lib/availability";
 import type { Viewport } from "@/components/explore-map";
+import { useT } from "@/lib/i18n";
 import { VoiceSearchButton } from "@/components/voice-search-button";
 
 const loadMap = () => import("@/components/explore-map");
@@ -36,11 +37,13 @@ function useDebounced<T>(value: T, ms: number) {
 }
 
 function Availability({ pin, large = false }: { pin: MapPin; large?: boolean }) {
+  const t = useT();
   const a = availabilityText(pin);
+  const main = a.main === "Available now" ? t("availableNow") : a.main === "Ask for times" ? t("askTimes") : a.main;
   return (
     <div className={large ? "text-base" : "text-sm"}>
       <p className={`font-semibold ${a.tone === "now" ? "text-emerald-600 dark:text-emerald-400" : a.tone === "later" ? "text-foreground" : "text-muted-foreground"}`}>
-        {a.tone === "now" && <span aria-hidden="true">🟢 </span>}{a.main}
+        {a.tone === "now" && <span aria-hidden="true">🟢 </span>}{main}
       </p>
       {a.sub && <p className="text-muted-foreground text-xs">{a.sub}</p>}
     </div>
@@ -48,6 +51,7 @@ function Availability({ pin, large = false }: { pin: MapPin; large?: boolean }) 
 }
 
 function ResultRow({ pin, selected, onSelect }: { pin: MapPin; selected: boolean; onSelect: () => void }) {
+  const t = useT();
   const distance = distanceText(pin.distanceKm);
   return (
     <li>
@@ -56,7 +60,7 @@ function ResultRow({ pin, selected, onSelect }: { pin: MapPin; selected: boolean
         <div className="flex-1 min-w-0">
           <p className="font-semibold truncate">{pin.title}</p>
           <Availability pin={pin} />
-          <p className="mt-0.5 text-xs text-muted-foreground">{CATEGORY_LABEL[pin.category]}{distance ? ` · ${distance}` : ""}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t(`cat.${pin.category}` as "cat.services")}{distance ? ` · ${distance}` : ""}</p>
         </div>
         <div className="text-right shrink-0">
           <p className="font-semibold">{priceText(pin)}</p>
@@ -68,6 +72,7 @@ function ResultRow({ pin, selected, onSelect }: { pin: MapPin; selected: boolean
 }
 
 export default function ExplorePage() {
+  const t = useT();
   const { state: location, locate, setSearched } = useUserLocation();
   const coords = location.status === "ready" ? location.coords : null;
 
@@ -149,11 +154,11 @@ export default function ExplorePage() {
         <p role="alert" className="p-6 text-sm text-muted-foreground">Could not load listings. {error instanceof Error ? error.message : ""}</p>
       ) : empty ? (
         <div className="p-8 text-center">
-          <p className="font-semibold">Nothing available here {when === "now" ? "right now" : when === "today" ? "today" : "yet"}</p>
-          <p className="mt-1 text-sm text-muted-foreground">Try another time or search a larger area.</p>
+          <p className="font-semibold">{t("nothingHere")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("tryAnother")}</p>
           <div className="mt-4 flex justify-center gap-2">
-            <button type="button" className={chip(false)} onClick={() => { setNearby(false); setRadiusKm(100); setArea((a) => (a ? { ...a, radiusKm: 100 } : a)); }}>Expand area</button>
-            {when !== "any" && <button type="button" className={chip(false)} onClick={() => setWhen("any")}>Any time</button>}
+            <button type="button" className={chip(false)} onClick={() => { setNearby(false); setRadiusKm(100); setArea((a) => (a ? { ...a, radiusKm: 100 } : a)); }}>{t("expandArea")}</button>
+            {when !== "any" && <button type="button" className={chip(false)} onClick={() => setWhen("any")}>{t("anyTime")}</button>}
           </div>
         </div>
       ) : (
@@ -166,36 +171,36 @@ export default function ExplorePage() {
     <div className="flex flex-col h-full min-h-0">
       {/* Search + filters */}
       <div className="shrink-0 border-b border-border bg-background px-4 pt-3 pb-2 space-y-2.5">
-        <p className="hidden md:block text-sm text-muted-foreground">Find what’s available, where and when.</p>
+        <p className="hidden md:block text-sm text-muted-foreground">{t("tagline")}</p>
         <label className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 h-12">
           <Search className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="What do you need?" aria-label="What do you need?"
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("whatNeed")} aria-label={t("whatNeed")}
             className="flex-1 min-w-0 bg-transparent text-base focus:outline-none" />
           {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><X className="h-4 w-4 text-muted-foreground" /></button>}
           <VoiceSearchButton onText={setQuery} />
         </label>
         <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4" role="group" aria-label="When and where">
-          <button type="button" className={chip(when === "now")} aria-pressed={when === "now"} onClick={() => setWhen(when === "now" ? "any" : "now")}>Now</button>
-          <button type="button" className={chip(when === "today")} aria-pressed={when === "today"} onClick={() => setWhen(when === "today" ? "any" : "today")}>Today</button>
+          <button type="button" className={chip(when === "now")} aria-pressed={when === "now"} onClick={() => setWhen(when === "now" ? "any" : "now")}>{t("now")}</button>
+          <button type="button" className={chip(when === "today")} aria-pressed={when === "today"} onClick={() => setWhen(when === "today" ? "any" : "today")}>{t("today")}</button>
           <button type="button" className={chip(nearby)} aria-pressed={nearby}
-            onClick={() => { if (!coords) locate(); setNearby(!nearby); }}>Nearby</button>
+            onClick={() => { if (!coords) locate(); setNearby(!nearby); }}>{t("nearby")}</button>
           <span className="w-px shrink-0 bg-border mx-1" aria-hidden="true" />
           {CATEGORIES.map((c) => (
             <button key={c} type="button" className={chip(category === c)} aria-pressed={category === c}
-              onClick={() => setCategory(category === c ? null : c)}>{CATEGORY_LABEL[c]}</button>
+              onClick={() => setCategory(category === c ? null : c)}>{t(`cat.${c}`)}</button>
           ))}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <form onSubmit={findPlace} className="flex flex-1 min-w-0 items-center gap-1.5">
             <button type="button" onClick={locate} className="p-1 text-primary" aria-label="Use my location"><Navigation className="h-4 w-4" /></button>
             <input value={placeText} onChange={(e) => setPlaceText(e.target.value)}
-              placeholder={coords ? (location.status === "ready" && location.source === "gps" ? "Near you · change area" : "Chosen area · change") : "Type your area or city"}
+              placeholder={coords ? (location.status === "ready" && location.source === "gps" ? t("nearYou") : "Chosen area · change") : t("typeArea")}
               aria-label="Area or city" className="flex-1 min-w-0 bg-transparent py-1 focus:outline-none" />
           </form>
-          <span aria-live="polite">{isFetching ? "Updating…" : data ? `${pins.length} result${pins.length === 1 ? "" : "s"}` : ""}</span>
+          <span aria-live="polite">{isFetching ? "Updating…" : data ? `${pins.length} ${t("results")}` : ""}</span>
           <div className="md:hidden flex rounded-lg border border-border overflow-hidden" role="group" aria-label="View">
-            <button type="button" onClick={() => setView("map")} aria-pressed={view === "map"} className={`px-2.5 py-1 flex items-center gap-1 ${view === "map" ? "bg-foreground text-background" : ""}`}><MapIcon className="h-3.5 w-3.5" />Map</button>
-            <button type="button" onClick={() => setView("list")} aria-pressed={view === "list"} className={`px-2.5 py-1 flex items-center gap-1 ${view === "list" ? "bg-foreground text-background" : ""}`}><List className="h-3.5 w-3.5" />List</button>
+            <button type="button" onClick={() => setView("map")} aria-pressed={view === "map"} className={`px-2.5 py-1 flex items-center gap-1 ${view === "map" ? "bg-foreground text-background" : ""}`}><MapIcon className="h-3.5 w-3.5" />{t("map")}</button>
+            <button type="button" onClick={() => setView("list")} aria-pressed={view === "list"} className={`px-2.5 py-1 flex items-center gap-1 ${view === "list" ? "bg-foreground text-background" : ""}`}><List className="h-3.5 w-3.5" />{t("list")}</button>
           </div>
         </div>
         {(placeError || location.status === "denied") && (
@@ -213,14 +218,14 @@ export default function ExplorePage() {
             selectedId={selectedId} onSelect={setSelectedId} onMove={onMove} fitToPins={!coords && !area} />
           {empty && view === "map" && (
             <div className="md:hidden absolute inset-x-3 top-3 z-[500] rounded-xl bg-card border border-border p-3 text-center text-sm shadow">
-              Nothing available here{when === "now" ? " right now" : when === "today" ? " today" : ""}.{" "}
-              <button type="button" className="font-semibold text-primary" onClick={() => { setNearby(false); setWhen("any"); setRadiusKm(100); setArea((a) => (a ? { ...a, radiusKm: 100 } : a)); }}>Expand area · Any time</button>
+              {t("nothingHere")}.{" "}
+              <button type="button" className="font-semibold text-primary" onClick={() => { setNearby(false); setWhen("any"); setRadiusKm(100); setArea((a) => (a ? { ...a, radiusKm: 100 } : a)); }}>{t("expandArea")} · {t("anyTime")}</button>
             </div>
           )}
           {selected && (
             <div className="absolute inset-x-3 bottom-3 z-[500] rounded-2xl bg-card border border-border shadow-lg p-4" role="dialog" aria-label={selected.title}>
               <button type="button" onClick={() => setSelectedId(null)} className="absolute right-2 top-2 p-1.5 text-muted-foreground" aria-label="Close"><X className="h-4 w-4" /></button>
-              <p className="text-xs text-muted-foreground">{CATEGORY_LABEL[selected.category]}</p>
+              <p className="text-xs text-muted-foreground">{t(`cat.${selected.category}` as "cat.services")}</p>
               <p className="pr-6 text-lg font-semibold leading-tight">{selected.title}</p>
               <div className="mt-1"><Availability pin={selected} large /></div>
               <div className="mt-3 flex items-center justify-between gap-3">
@@ -228,7 +233,7 @@ export default function ExplorePage() {
                   {distanceText(selected.distanceKm) ? <>{distanceText(selected.distanceKm)} · </> : null}
                   <span className="text-base font-semibold text-foreground">{priceText(selected)}</span>
                 </p>
-                <Link href={`/discover/${selected.id}`} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">View →</Link>
+                <Link href={`/discover/${selected.id}`} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">{t("view")} →</Link>
               </div>
             </div>
           )}

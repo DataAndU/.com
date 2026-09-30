@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { LANGUAGES, STRINGS, type Key, type LangCode } from "./i18n-strings";
+import { UI, UI_EN, type UiKey } from "./i18n-ui";
 
 const STORAGE_KEY = "pontreol-lang";
 const LangContext = createContext<{ lang: LangCode; setLang: (lang: LangCode) => void }>({
@@ -38,7 +39,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
 export function useT() {
   const { lang } = useContext(LangContext);
-  return (key: Key) => STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;
+  return (key: Key | UiKey) =>
+    key in UI_EN
+      ? UI[lang]?.[key as UiKey] ?? UI_EN[key as UiKey]
+      : STRINGS[lang]?.[key as Key] ?? STRINGS.en[key as Key] ?? key;
 }
 
 export function LanguagePicker({ className = "" }: { className?: string }) {
