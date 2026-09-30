@@ -4,6 +4,8 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import ProgrammingError
 from fastapi.middleware.cors import CORSMiddleware
 
 import billing_models  # registers billing tables with shared metadata
@@ -67,7 +69,45 @@ def ready():
     except Exception:
         logging.getLogger("pontreol.health").warning("Readiness check failed: database unreachable")
         raise HTTPException(503, "Database unavailable")
-    return {"status": "ready"}
+    return {"status": "ready", "schema": "current" if schema_current() else "update_needed"}
+
+
+# Newest additive migration per table: if these exist, migrations are applied.
+EXPECTED_COLUMNS = {
+    "listings": {"deal_percent", "deal_until"},
+    "reviews": {"photo_ids"},
+    "users": {"last_reminded_on", "available_until"},
+    "notification_preferences": {"email_reminders"},
+    "bookings": {"share_token_hash"},
+    "society_recommendations": {"society_slug"},
+    "free_alerts": {"keyword"},
+}
+
+
+def schema_current():
+    """True when every column added by migrations exists. Names only; no data."""
+    from sqlalchemy import inspect
+    from deps import engine
+    try:
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        return all(table in tables and columns <= {c["name"] for c in inspector.get_columns(table)}
+                   for table, columns in EXPECTED_COLUMNS.items())
+    except Exception:
+        return False
+
+
+@app.exception_handler(ProgrammingError)
+async def schema_out_of_date(request, exc):
+    """A missing column/table means migrations were not applied after a deploy.
+    424 (not 500/503, which App Platform masks) with a clear, secret-free message."""
+    code = getattr(getattr(exc, "orig", None), "sqlstate", None)
+    if code in {"42703", "42P01"}:  # undefined_column, undefined_table
+        logging.getLogger("pontreol.health").error(
+            "Database schema is out of date: run python python/apply_migrations.py")
+        return JSONResponse({"detail": "The app was updated and its database needs a quick update. "
+                             "The site owner should run: python python/apply_migrations.py"}, status_code=424)
+    raise exc
 
 
 for router in (auth_router, account_router, listings_router, media_router, availability_router,

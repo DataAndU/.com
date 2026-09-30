@@ -284,3 +284,23 @@ def test_configure_spaces_sets_cors_and_reports_private(s3, monkeypatch, capsys)
     assert set(rules[0]["AllowedMethods"]) == {"PUT", "GET", "HEAD"}
     out = capsys.readouterr().out
     assert "private" in out and "spaces-secret-value" not in out and "DO00TESTKEY" not in out
+
+
+def test_missing_column_returns_clear_424_not_500():
+    from fastapi.testclient import TestClient
+    from sqlalchemy.exc import ProgrammingError
+    from app import app
+
+    class Orig(Exception):
+        sqlstate = "42703"
+
+    @app.get("/api/__schema_probe")
+    def probe():
+        raise ProgrammingError("SELECT deal_percent", {}, Orig("column does not exist"))
+
+    try:
+        response = TestClient(app).get("/api/__schema_probe")
+    finally:
+        app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", "") != "/api/__schema_probe"]
+    assert response.status_code == 424
+    assert "apply_migrations" in response.json()["detail"] and "SELECT" not in response.text
