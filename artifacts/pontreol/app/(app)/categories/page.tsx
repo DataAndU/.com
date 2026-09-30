@@ -30,6 +30,14 @@ export default function CategoriesPage() {
           </div>
           <ArrowRight className="h-5 w-5 shrink-0 text-primary" />
         </Link>
+        <div className="max-w-4xl mx-auto mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[["wedding", "💍 Wedding pack", "Hall + cook + decor"], ["festival", "🪔 Festival pack", "Decor, cooks, help"], ["party", "🎉 Party pack", "Venue + helpers"]].map(([type, title, hint]) => (
+            <Link key={type} href={`/bundles/event?type=${type}`} className="rounded-xl border border-border bg-card p-4 hover:border-primary">
+              <p className="font-semibold">{title}</p>
+              <p className="text-xs text-muted-foreground">{hint}</p>
+            </Link>
+          ))}
+        </div>
         <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {CATEGORIES.map((cat) => (
             <Link 
