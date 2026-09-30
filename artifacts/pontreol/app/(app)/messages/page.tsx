@@ -1,5 +1,6 @@
 "use client";
 
+import { InboxTabs } from "@/components/inbox-tabs";
 import { useConversations, useMessages, useSendMessage, useRevealContact, useContactUsage } from "@/lib/api/messages";
 import { format } from "date-fns";
 import { MessageSquare, Send, User, AlertCircle, RefreshCw } from "lucide-react";
@@ -37,14 +38,10 @@ export default function MessagesPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="shrink-0 border-b border-border bg-card px-6 py-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Messages</h1>
-        {usageData && !usageData.paid && user?.role === "buyer" && (
-          <div className="text-xs bg-secondary px-3 py-1.5 rounded-full text-secondary-foreground font-medium flex items-center gap-2">
-            <span>Free Contacts: {usageData.remaining} left this month</span>
-          </div>
-        )}
-      </div>
+      <InboxTabs />
+      {usageData && !usageData.paid && user?.role === "buyer" && (
+        <p className="shrink-0 px-4 py-1.5 text-xs text-muted-foreground border-b border-border">Free contacts left this month: {usageData.remaining}</p>
+      )}
       
       <div className="flex-1 flex overflow-hidden">
         

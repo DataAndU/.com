@@ -2,7 +2,7 @@
 
 import { useListingAvailability, useUpdateAvailability } from "@/lib/api/listings";
 import { format, addDays } from "date-fns";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -38,20 +38,27 @@ export default function AvailabilityPage() {
     });
   };
 
+  const [justPosted, setJustPosted] = useState(false);
+  useEffect(() => { setJustPosted(new URLSearchParams(window.location.search).get("new") === "1"); }, []);
   if (isLoading) return <div className="p-8 flex justify-center"><div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
       <div className="shrink-0 border-b border-border bg-card px-6 py-4 flex items-center gap-4">
         <button onClick={() => router.back()} className="p-2 hover:bg-foreground/5 rounded-full"><ArrowLeft className="w-5 h-5" /></button>
-        <h1 className="text-xl font-bold truncate">Manage Availability</h1>
+        <h1 className="text-xl font-bold truncate">Available times</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-6">
-          
+          {justPosted && (
+            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
+              <b>Posted!</b> Now add the times you&apos;re available. Customers searching &quot;Now&quot; or &quot;Today&quot; only see listings with times.
+              Providers can also switch on <b>Available now</b> in Profile.
+            </div>
+          )}
           <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4">Current Schedule</h2>
+            <h2 className="text-lg font-semibold mb-4">When are you available?</h2>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">Timezone</label>
               <input type="text" value={timezone} onChange={e=>setTimezone(e.target.value)} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm" />

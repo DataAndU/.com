@@ -1,4 +1,5 @@
 "use client";
+import { MarketplaceNotice } from "@/components/marketplace-notice";
 
 import { ShareTrip } from "@/components/share-trip";
 import { useBooking, useUpdateBookingStatus, useQuoteBooking, useQuoteResponse, useCompleteBooking, useCreateReview } from "@/lib/api/bookings";
@@ -93,6 +94,7 @@ export default function RequestDetailPage() {
             )}
 
             <div className="mt-6"><BookingMoment status={booking.status} isBuyer={user?.id === booking.buyerId} /></div>
+            <MarketplaceNotice className="mt-4" />
             <dl className="mt-6 divide-y divide-border rounded-lg border border-border text-sm">
               {detailRows(booking.details).map(([label, value]) => (
                 <div key={label} className="flex justify-between gap-4 px-4 py-2.5">

@@ -50,7 +50,7 @@ export function VoiceSearchButton({ onText }: { onText: (text: string) => void }
 
   return (
     <button type="button" onClick={start} aria-label="Search by voice" title="Search by voice"
-      className={`h-10 w-10 shrink-0 rounded-lg border border-border flex items-center justify-center ${listening ? "bg-red-500 text-white animate-pulse" : "bg-input text-muted-foreground hover:text-foreground"}`}>
+      className={`h-9 w-9 shrink-0 rounded-lg flex items-center justify-center ${listening ? "bg-red-500 text-white animate-pulse" : "bg-input text-muted-foreground hover:text-foreground"}`}>
       <Mic className="h-4 w-4" />
     </button>
   );

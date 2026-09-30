@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // Session cookie names issued by the API (api-server/python/auth.py).
 const SESSION_COOKIES = ['__Host-pontreol_session', 'pontreol_session'];
-const PUBLIC_PATHS = [/^\/$/, /^\/sign-in(\/.*)?$/, /^\/sign-up(\/.*)?$/, /^\/api(\/.*)?$/, /^\/trip\/[^/]+$/];
+const PUBLIC_PATHS = [/^\/$/, /^\/sign-in(\/.*)?$/, /^\/sign-up(\/.*)?$/, /^\/api(\/.*)?$/, /^\/trip\/[^/]+$/, /^\/safety$/];
 
 function configuredHosts(): Set<string> {
   const hosts = new Set<string>();

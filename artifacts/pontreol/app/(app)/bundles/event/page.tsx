@@ -103,7 +103,7 @@ export default function EventPackPage() {
     <div className="h-full overflow-y-auto">
       <div className="border-b border-border bg-card px-6 py-5">
         <div className="mx-auto max-w-3xl">
-          <Link href="/categories" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Categories</Link>
+          <Link href="/home" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Explore</Link>
           <div className="mb-3 flex flex-wrap gap-2">
             {(Object.keys(PACKS) as PackKey[]).map((key) => (
               <button key={key} type="button" onClick={() => setPack(key)} aria-pressed={pack === key}

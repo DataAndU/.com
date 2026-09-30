@@ -571,3 +571,18 @@ def test_free_alert_fires_once_when_matching_provider_switches_on(people, maker)
         notes = db.scalars(select(Notification).where(Notification.type == "free_alert")).all()
         assert [n.user_id for n in notes] == ["buyer"] and notes[0].resource_id == "l-prov"
         assert db.scalar(select(func.count(FreeAlert.id))) == 1          # far alert still waiting
+
+
+def test_report_listing_notifies_admins_and_is_rate_limited(people, maker):
+    from models import Notification
+    from sqlalchemy import select
+    with maker() as db:
+        db.add(User(id="adm", email="adm@example.com", display_name="adm", role="buyer", is_admin=True))
+        db.commit()
+    buyer = people["buyer"]
+    assert buyer.post("/api/listings/l-prov/report", json={"reason": "no"}, headers=SAME).status_code == 422
+    assert buyer.post("/api/listings/nope/report", json={"reason": "Fake listing"}, headers=SAME).status_code == 404
+    assert buyer.post("/api/listings/l-prov/report", json={"reason": "Asked for advance payment"}, headers=SAME).status_code == 202
+    with maker() as db:
+        notes = db.scalars(select(Notification).where(Notification.type == "listing_report")).all()
+        assert [n.user_id for n in notes] == ["adm"] and notes[0].resource_id == "l-prov"

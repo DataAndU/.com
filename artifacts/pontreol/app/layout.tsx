@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Pontreol",
-  description: "Everything you need, right next door. Hire it, book it, ride it: nearby.",
+  description: "Find what’s available, where and when: services, spaces, delivery and travel near you.",
 };
 
 const THEME_SCRIPT = `try{var t=localStorage.getItem("pontreol-theme");if(!t)t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";if(t==="light"){document.documentElement.classList.remove("dark");document.documentElement.classList.add("light")}}catch(e){}`;

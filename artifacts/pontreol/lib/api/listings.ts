@@ -4,7 +4,14 @@ import { fetchApi, Listing, Page, Media } from "./client";
 import { readCache, writeCache } from "@/lib/offline-cache";
 
 /** Compact listing projection returned by `/home/summary?view=map`. */
-export type MapPin = Pick<Listing, "id" | "providerId" | "category" | "title" | "price" | "pricingMode" | "currency" | "latitude" | "longitude" | "status" | "distanceKm"> & { availableNow?: boolean };
+export type MapPin = Pick<Listing, "id" | "providerId" | "category" | "title" | "price" | "pricingMode" | "currency" | "latitude" | "longitude" | "status" | "distanceKm"> & {
+  availableNow?: boolean;
+  availableUntil?: string | null;
+  nextSlotStart?: string | null;
+  nextSlotEnd?: string | null;
+  departureAt?: string | null;
+  dealPercent?: number | null;
+};
 
 export type HomeSummary = { totalListings: number; categories: { category: string; count: number }[]; nearbyListings: MapPin[] };
 

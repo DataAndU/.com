@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from common import listing_json, listings_json, owned
 from deps import current_user, get_db, require_role
-from models import Availability, GeocodeCache, Listing, ListingMedia, Media, User
+from models import Availability, GeocodeCache, Listing, ListingMedia, Media, Notification, User
 
 router = APIRouter()
 # Equipment was retired: old rows stay in the database but are no longer listed or creatable.
@@ -284,6 +284,36 @@ def set_deal(listing_id: str, body: DealBody, db: Session = Depends(get_db), use
 def end_deal(listing_id: str, db: Session = Depends(get_db), user=Depends(require_role("provider"))):
     listing = owned(db, Listing, listing_id, user)
     listing.deal_percent, listing.deal_until = None, None
+
+
+class ReportBody(BaseModel):
+    reason: str = Field(min_length=5, max_length=500)
+
+
+REPORTS_PER_DAY = 5
+
+
+@router.post("/listings/{listing_id}/report", status_code=202)
+def report_listing(listing_id: str, body: ReportBody, db: Session = Depends(get_db), user=Depends(current_user)):
+    """Report a suspicious/misleading listing: every admin gets a notification
+    (existing notifications table, no schema change). Admins then use the
+    existing moderation tools to hide the listing or suspend the account."""
+    listing = db.get(Listing, listing_id)
+    if not listing or listing.status == "archived":
+        raise HTTPException(404, "Listing not found")
+    tag = f"[reporter {user.id}]"
+    since = datetime.now(timezone.utc) - timedelta(days=1)
+    recent = db.scalar(select(func.count(func.distinct(Notification.resource_id))).where(
+        Notification.type == "listing_report", Notification.created_at > since,
+        Notification.body.startswith(tag)))
+    if recent >= REPORTS_PER_DAY:
+        raise HTTPException(429, "You have sent several reports today. Our team will review them.")
+    for admin_id in db.scalars(select(User.id).where(User.is_admin.is_(True))):
+        db.add(Notification(user_id=admin_id, type="listing_report",
+                            title=f"Listing reported: {listing.title[:100]}",
+                            body=f"{tag} {body.reason.strip()}"[:2000],
+                            resource_type="listing", resource_id=listing.id))
+    return {"status": "received"}
 
 
 @router.delete("/listings/{listing_id}", status_code=204)

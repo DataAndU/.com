@@ -90,7 +90,7 @@ export default function MovingBundlePage() {
     <div className="h-full overflow-y-auto">
       <div className="border-b border-border bg-card px-6 py-5">
         <div className="mx-auto max-w-3xl">
-          <Link href="/categories" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Categories</Link>
+          <Link href="/home" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Explore</Link>
           <h1 className="text-2xl font-bold">Moving house? Book everything at once</h1>
           <p className="text-sm text-muted-foreground">A tempo plus optional helpers or cleaners near you, in one go. Each provider gets a normal request and replies to you.</p>
         </div>

@@ -48,7 +48,7 @@ const en = {
   "cat.spaces": "Spaces",
   "cat.delivery": "Delivery",
   "cat.travel": "Travel",
-  "tagline": "Everything you need, right next door.",
+  "tagline": "Find what’s available, where and when.",
   "signInToContinue": "Sign in to continue",
   "noAccount": "Don't have an account?",
   "signUp": "Sign up",

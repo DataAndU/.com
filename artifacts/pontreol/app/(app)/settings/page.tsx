@@ -7,6 +7,9 @@ import { useMe, useUpdateProfile } from "@/lib/api/account";
 import { VerificationPanel } from "@/components/verification-panel";
 import { InviteCard } from "@/components/invite-card";
 import { NotificationCenter } from "@/components/notification-center";
+import { AvailabilityToggle } from "@/components/availability-toggle";
+import { LanguagePicker } from "@/lib/i18n";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const inputClass = "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 
@@ -40,8 +43,25 @@ export default function SettingsPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <header className="border-b border-border bg-card px-5 py-4 md:px-8"><h1 className="text-2xl font-bold">Settings</h1><p className="mt-1 text-sm text-muted-foreground">Manage your profile, trust, and alerts.</p></header>
-      <div className="mx-auto max-w-5xl space-y-8 p-4 md:p-8">
+      <header className="border-b border-border bg-background px-5 py-4 md:px-8"><h1 className="text-xl font-semibold">Profile</h1><p className="mt-0.5 text-sm text-muted-foreground">{me.data.email}</p></header>
+      <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-8">
+        <AvailabilityToggle />
+        <nav className="divide-y divide-border rounded-xl border border-border" aria-label="Profile">
+          {[
+            ["My bookings", "/requests", true],
+            ["My listings & earnings", "/listings", me.data.role === "provider"],
+            ["My society", "/society", true],
+            ["Plans & payments", "/billing", true],
+            ["Shop poster (QR)", "/poster", me.data.role === "provider"],
+            ["Admin", "/admin", !!me.data.isAdmin],
+            ["Safety & Disclaimer", "/safety", true],
+          ].filter(([, , show]) => show).map(([label, href]) => (
+            <Link key={href as string} href={href as string} className="flex items-center justify-between px-4 py-3.5 text-sm font-medium hover:bg-foreground/5">
+              {label}<span className="text-muted-foreground" aria-hidden="true">›</span>
+            </Link>
+          ))}
+        </nav>
+        <div className="flex gap-2"><LanguagePicker className="flex-1" /><ThemeToggle /></div>
         <section className="rounded-xl border border-border bg-card p-5 md:p-6">
           <div className="mb-5 flex items-center gap-3"><UserRound className="h-5 w-5 text-primary" /><div><h2 className="font-semibold">Account profile</h2><p className="text-xs text-muted-foreground">{me.data.email}</p></div></div>
           <form className="space-y-4" onSubmit={save}>

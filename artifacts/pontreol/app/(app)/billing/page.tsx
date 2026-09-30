@@ -96,6 +96,7 @@ export default function BillingPage() {
         <div>
           <h1 className="text-2xl font-bold mb-2">Billing & Plans</h1>
           <p className="text-muted-foreground">Manage your subscription and billing history.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Plans are paid to Pontreol through Razorpay. Payments for bookings are arranged directly with the provider. <a href="/safety" className="underline">Safety &amp; Disclaimer</a></p>
         </div>
 
         {plansData && !plansData.checkoutAvailable && !statusData?.subscription && (

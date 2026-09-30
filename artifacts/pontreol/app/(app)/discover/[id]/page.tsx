@@ -1,4 +1,6 @@
 "use client";
+import { ReportListing } from "@/components/report-listing";
+import { MarketplaceNotice } from "@/components/marketplace-notice";
 
 import { TimeChips } from "@/components/time-chips";
 import { ListingPhoto } from "@/components/listing-photo";
@@ -208,6 +210,10 @@ export default function ListingDetailPage() {
                   <ContactButtons listingId={listing.id} title={listing.title} />
                 </div>
               )}
+              <div className="mt-4 space-y-2">
+                <MarketplaceNotice />
+                {user?.id !== listing.providerId && <ReportListing listingId={listing.id} />}
+              </div>
               {user?.role === "buyer" && user.id !== listing.providerId && (
                 <div className="mt-4 pt-4 border-t border-border">
                   <h4 className="text-sm font-medium mb-2">Send Message</h4>

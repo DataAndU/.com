@@ -6,7 +6,8 @@ import { useMe } from "@/lib/api/account";
 import { useCreateListing, useDeleteListing, useMyListings, useUpdateListingStatus } from "@/lib/api/listings";
 import { ExternalLink, List as ListIcon, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchApi } from "@/lib/api/client";
 import type { Category } from "@/components/listing-form";
@@ -19,6 +20,10 @@ export default function MyListingsPage() {
   const statusMutation = useUpdateListingStatus();
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
+  // "+ Post" links here with ?new=1 to open the posting flow directly.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") { setIsCreating(true); setNewCategory(undefined); }
+  }, []);
   const [newCategory, setNewCategory] = useState<Category | undefined>(undefined);
   const queryClient = useQueryClient();
   const { data: earnings } = useQuery({
@@ -49,11 +54,22 @@ export default function MyListingsPage() {
   const [actionError, setActionError] = useState("");
 
   if (userLoading) return <div className="p-8 text-center text-muted-foreground">Loading…</div>;
-  if (user?.role !== "provider") return <div className="p-8 text-center text-muted-foreground">Only providers can manage listings.</div>;
+  if (user?.role !== "provider") return (
+    <div className="mx-auto max-w-md p-8 text-center">
+      <h1 className="text-xl font-semibold">Post availability</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        This is a customer account, so it can book but not post. To offer a service, space, delivery or travel,
+        sign up with another email and choose &quot;I want to offer&quot;.
+      </p>
+      <Link href="/home" className="mt-5 inline-block rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">Back to Explore</Link>
+    </div>
+  );
 
   const create = async (payload: ListingFormPayload) => {
-    await createMutation.mutateAsync(payload);
+    const created = await createMutation.mutateAsync(payload);
     setIsCreating(false);
+    // Availability is the heart of Pontreol: go straight to setting times.
+    router.push(`/listings/${created.id}/availability?new=1`);
   };
 
   const changeStatus = async (id: string, status: "active" | "paused") => {
@@ -115,10 +131,27 @@ export default function MyListingsPage() {
           {isCreating ? (
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm max-w-3xl mx-auto">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold">New Listing</h2>
+                <h2 className="text-lg font-semibold">Post availability</h2>
                 <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-foreground/5 rounded-full" aria-label="Close form"><X className="w-5 h-5" /></button>
               </div>
-              <ListingForm defaultCategory={newCategory} mutationPending={createMutation.isPending} onSubmit={create} onCancel={() => setIsCreating(false)} />
+              {!newCategory ? (
+                <div>
+                  <p className="mb-3 text-sm text-muted-foreground">What are you offering?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {([["services", "🛠️", "Services", "Skills and help"], ["spaces", "🏛️", "Spaces", "Rooms, halls, parking"], ["delivery", "🚚", "Delivery", "Moving and parcels"], ["travel", "🚗", "Travel", "Seats on a trip"]] as const).map(([id, emoji, name, hint]) => (
+                      <button key={id} type="button" onClick={() => setNewCategory(id)}
+                        className="rounded-xl border border-border p-4 text-left hover:border-primary">
+                        <span className="text-2xl" aria-hidden="true">{emoji}</span>
+                        <span className="mt-1 block font-semibold">{name}</span>
+                        <span className="block text-xs text-muted-foreground">{hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-4 text-xs text-muted-foreground">After posting you&apos;ll set the times you&apos;re available. That&apos;s what customers see first.</p>
+                </div>
+              ) : (
+                <ListingForm defaultCategory={newCategory} mutationPending={createMutation.isPending} onSubmit={create} onCancel={() => setIsCreating(false)} />
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

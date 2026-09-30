@@ -1,11 +1,12 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { DiscoverBoard } from "@/components/discover-board";
-
-export default function DiscoverPage() {
-  return (
-    <DiscoverBoard
-      headerContent={<h1 className="text-xl font-semibold mb-3">Find help nearby</h1>}
-    />
-  );
+// Search now lives on Explore (/home). Old links keep their filters.
+export default async function DiscoverRedirect({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const p = await searchParams;
+  const next = new URLSearchParams();
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  if (one(p.q)) next.set("q", one(p.q)!);
+  if (one(p.category)) next.set("category", one(p.category)!);
+  if (one(p.now) === "1") next.set("when", "now");
+  redirect(`/home${next.size ? `?${next}` : ""}`);
 }

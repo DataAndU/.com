@@ -1,5 +1,6 @@
 "use client";
 
+import { InboxTabs } from "@/components/inbox-tabs";
 import { useBookings, useUpdateBookingStatus, useQuoteBooking, useQuoteResponse, useCompleteBooking } from "@/lib/api/bookings";
 import { useMe } from "@/lib/api/account";
 import { format } from "date-fns";
@@ -24,9 +25,7 @@ export default function RequestsPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <SentCelebration />
-      <div className="shrink-0 border-b border-border bg-card px-6 py-4">
-        <h1 className="text-xl font-semibold">Bookings</h1>
-      </div>
+      <InboxTabs />
       
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-4">
