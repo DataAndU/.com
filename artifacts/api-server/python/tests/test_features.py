@@ -219,6 +219,10 @@ def test_referral_credit_when_invitee_becomes_provider(people, maker):
     friend = signed_in(maker, new_id)
     assert friend.put("/api/me/role", json={"role": "provider"}, headers=SAME).status_code == 200
     friend.put("/api/me/role", json={"role": "provider"}, headers=SAME)  # repeat: no double credit
+    # Switching modes back and forth never adds more credit.
+    assert friend.put("/api/me/role", json={"role": "buyer"}, headers=SAME).json()["role"] == "buyer"
+    assert friend.post("/api/listings", json={}, headers=SAME).status_code == 403   # Find mode cannot post
+    assert friend.put("/api/me/role", json={"role": "provider"}, headers=SAME).json()["role"] == "provider"
     stats = people["prov"].get("/api/me/referral").json()
     assert stats["invited"] == 1 and stats["providers"] == 1 and stats["creditMonths"] == 1
 

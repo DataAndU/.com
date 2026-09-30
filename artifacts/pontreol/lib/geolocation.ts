@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 export type Coordinates = { lat: number; lng: number };
 
 export type LocationState =
+  | { status: "idle" } // not asked yet: we never prompt without the user asking
   | { status: "locating" }
   | { status: "ready"; coords: Coordinates; source: "gps" | "search" }
   | { status: "denied" }
@@ -79,13 +80,16 @@ export function useUserLocation() {
       permissions.query({ name: "geolocation" as PermissionName }).then(
         (result) => {
           if (cancelled) return;
+          // Use location silently only if the user already allowed it;
+          // otherwise wait until they choose "Use my location".
           if (result.state === "denied") setState({ status: "denied" });
-          else locate();
+          else if (result.state === "granted") locate();
+          else setState({ status: "idle" });
         },
-        () => { if (!cancelled) locate(); },
+        () => { if (!cancelled) setState({ status: "idle" }); },
       );
     } else {
-      locate();
+      setState({ status: "idle" });
     }
     return () => { cancelled = true; };
     // Run once on mount; `locate` is stable.

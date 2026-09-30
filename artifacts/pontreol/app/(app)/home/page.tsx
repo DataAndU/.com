@@ -1,6 +1,7 @@
 "use client";
+import { Overlay } from "@/components/overlay";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +12,10 @@ import { useUserLocation } from "@/lib/geolocation";
 import { availabilityText, CATEGORY_LABEL, distanceText, priceText } from "@/lib/availability";
 import type { Viewport } from "@/components/explore-map";
 import { useT } from "@/lib/i18n";
+import { useRouter } from "next/navigation";
+import { Tutorial } from "@/components/tutorial";
+import { OneTimeHint } from "@/components/one-time-hint";
+import { hasSeen, markSeen, TUTORIAL } from "@/lib/onboarding";
 import { VoiceSearchButton } from "@/components/voice-search-button";
 
 const loadMap = () => import("@/components/explore-map");
@@ -81,7 +86,15 @@ export default function ExplorePage() {
   const [when, setWhen] = useState<When>("any");
   const [nearby, setNearby] = useState(false);
   const [view, setView] = useState<"map" | "list">("map");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedIdRaw] = useState<string | null>(null);
+  const router = useRouter();
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [askLocation, setAskLocation] = useState(false);
+  const dismissHint = useRef<((id: string) => void) | null>(null);
+  const setSelectedId = useCallback((id: string | null) => {
+    if (id) dismissHint.current?.("marker");
+    setSelectedIdRaw(id);
+  }, []);
   const [area, setArea] = useState<Viewport | null>(null);
   const [radiusKm, setRadiusKm] = useState(15);
   const [placeText, setPlaceText] = useState("");
@@ -90,6 +103,8 @@ export default function ExplorePage() {
   // Links like /home?q=plumber&when=now&category=spaces open with those filters.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
+    // First visit on this device (or "How Pontreol works" from Profile).
+    if (p.get("tutorial") === "1" || !hasSeen(TUTORIAL)) setShowTutorial(true);
     if (p.get("q")) setQuery(p.get("q")!);
     const c = p.get("category");
     if (c && (CATEGORIES as readonly string[]).includes(c)) setCategory(c);
@@ -128,7 +143,21 @@ export default function ExplorePage() {
   const pins = useMemo(() => data?.nearbyListings ?? [], [data]);
   const selected = pins.find((p) => p.id === selectedId) ?? null;
 
-  const onMove = useCallback((v: Viewport) => setArea(v), []);
+  const onMove = useCallback((v: Viewport) => { dismissHint.current?.("move"); setArea(v); }, []);
+
+  const finishTutorial = (next: "explore" | "post" | "skip") => {
+    markSeen(TUTORIAL);
+    setShowTutorial(false);
+    if (next === "post") router.push("/listings?new=1");
+  };
+
+  // Location is only requested after a short explanation, when the user asks.
+  const wantLocation = (thenNearby: boolean) => {
+    if (coords) { if (thenNearby) setNearby(!nearby); return; }
+    if (location.status === "denied") { setPlaceError("Location is blocked in your browser. Type your area instead."); return; }
+    setAskLocation(true);
+    if (thenNearby) setNearby(true);
+  };
   const mapCenter: [number, number] = coords ? [coords.lat, coords.lng] : OVERVIEW;
   const mapZoom = coords ? 13 : 5;
 
@@ -169,6 +198,20 @@ export default function ExplorePage() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      {showTutorial && <Tutorial onDone={finishTutorial} />}
+      {askLocation && (
+        <Overlay>
+        <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/50 p-3" role="dialog" aria-modal="true" aria-label="Use your location">
+          <div className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-2xl">
+            <p className="text-3xl" aria-hidden="true">📍</p>
+            <h2 className="mt-2 text-lg font-semibold">See what’s available near you</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Pontreol can use your location to show nearby availability. It is not shared with other people.</p>
+            <button type="button" onClick={() => { setAskLocation(false); locate(); }} className="mt-4 w-full rounded-xl bg-primary py-3 font-semibold text-primary-foreground" data-testid="location-allow">Use my location</button>
+            <button type="button" onClick={() => { setAskLocation(false); setNearby(false); }} className="mt-2 w-full rounded-xl border border-border py-3 font-semibold" data-testid="location-not-now">Not now</button>
+          </div>
+        </div>
+        </Overlay>
+      )}
       {/* Search + filters */}
       <div className="shrink-0 border-b border-border bg-background px-4 pt-3 pb-2 space-y-2.5">
         <p className="hidden md:block text-sm text-muted-foreground">{t("tagline")}</p>
@@ -183,7 +226,7 @@ export default function ExplorePage() {
           <button type="button" className={chip(when === "now")} aria-pressed={when === "now"} onClick={() => setWhen(when === "now" ? "any" : "now")}>{t("now")}</button>
           <button type="button" className={chip(when === "today")} aria-pressed={when === "today"} onClick={() => setWhen(when === "today" ? "any" : "today")}>{t("today")}</button>
           <button type="button" className={chip(nearby)} aria-pressed={nearby}
-            onClick={() => { if (!coords) locate(); setNearby(!nearby); }}>{t("nearby")}</button>
+            onClick={() => (coords ? setNearby(!nearby) : wantLocation(true))}>{t("nearby")}</button>
           <span className="w-px shrink-0 bg-border mx-1" aria-hidden="true" />
           {CATEGORIES.map((c) => (
             <button key={c} type="button" className={chip(category === c)} aria-pressed={category === c}
@@ -192,7 +235,7 @@ export default function ExplorePage() {
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <form onSubmit={findPlace} className="flex flex-1 min-w-0 items-center gap-1.5">
-            <button type="button" onClick={locate} className="p-1 text-primary" aria-label="Use my location"><Navigation className="h-4 w-4" /></button>
+            <button type="button" onClick={() => wantLocation(false)} className="p-1 text-primary" aria-label="Use my location"><Navigation className="h-4 w-4" /></button>
             <input value={placeText} onChange={(e) => setPlaceText(e.target.value)}
               placeholder={coords ? (location.status === "ready" && location.source === "gps" ? t("nearYou") : "Chosen area · change") : t("typeArea")}
               aria-label="Area or city" className="flex-1 min-w-0 bg-transparent py-1 focus:outline-none" />
@@ -216,6 +259,12 @@ export default function ExplorePage() {
         <div className={`${view === "map" ? "block" : "hidden"} md:block flex-1 min-h-0 relative z-0`}>
           <ExploreMap pins={pins} center={mapCenter} zoom={mapZoom} user={coords ? [coords.lat, coords.lng] : null}
             selectedId={selectedId} onSelect={setSelectedId} onMove={onMove} fitToPins={!coords && !area} />
+          {!showTutorial && !selected && !empty && pins.length > 0 && (
+            <OneTimeHint className="absolute inset-x-3 bottom-3 z-[500]" dismissRef={dismissHint} hints={[
+              { id: "marker", text: "Tap a marker to see availability and price." },
+              { id: "move", text: "Move the map to discover availability in another area." },
+            ]} />
+          )}
           {empty && view === "map" && (
             <div className="md:hidden absolute inset-x-3 top-3 z-[500] rounded-xl bg-card border border-border p-3 text-center text-sm shadow">
               {t("nothingHere")}.{" "}

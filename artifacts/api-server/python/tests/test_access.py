@@ -35,15 +35,21 @@ def request(method="POST", origin="https://app.example", site="same-origin"):
                     "headers": headers})
 
 
-def test_role_selection_is_permanent(monkeypatch):
+def test_mode_can_be_switched_and_permissions_follow_the_mode(monkeypatch):
     monkeypatch.setenv("ALLOWED_ORIGINS", "https://app.example")
     user = User(id="00000000-0000-0000-0000-000000000001",
                 google_sub="user_1", email="a@example.com", display_name="A")
     db = ScalarDB(user)
     assert set_role(RoleBody(role="buyer"), db, user)["role"] == "buyer"
-    with pytest.raises(HTTPException) as denied:
-        set_role(RoleBody(role="provider"), db, user)
-    assert denied.value.status_code == 409
+    with pytest.raises(HTTPException):
+        require_role("provider")(user)          # Find mode cannot post
+    user.founding_provider = True                  # avoid the count query in this stub DB
+    assert set_role(RoleBody(role="provider"), db, user)["role"] == "provider"
+    assert require_role("provider")(user) is user
+    with pytest.raises(HTTPException):
+        require_role("buyer")(user)             # Provide mode cannot book
+    assert set_role(RoleBody(role="buyer"), db, user)["role"] == "buyer"
+    assert user.founding_provider is True          # badge is never taken away
 
 
 def test_role_dependency_denies_other_role():

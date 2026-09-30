@@ -1,4 +1,5 @@
 "use client";
+import { ModeSwitch } from "@/components/mode-switch";
 import { ReportListing } from "@/components/report-listing";
 import { MarketplaceNotice } from "@/components/marketplace-notice";
 
@@ -242,9 +243,14 @@ export default function ListingDetailPage() {
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm sticky top-6">
               <h3 className="text-lg font-bold mb-4">Request Booking</h3>
               
-              {user?.role !== "buyer" ? (
+              {user?.id === listing.providerId ? (
                 <div className="text-center p-4 bg-secondary/50 rounded-lg text-sm">
-                  You must be registered as a Buyer to request bookings.
+                  This is your listing.
+                </div>
+              ) : user?.role !== "buyer" ? (
+                <div className="text-center p-4 bg-secondary/50 rounded-lg text-sm space-y-3">
+                  <p>You&apos;re in Provide mode. Switch to Find mode to book or message. Same account.</p>
+                  <ModeSwitch />
                 </div>
               ) : user.id === listing.providerId ? (
                 <div className="text-center p-4 bg-secondary/50 rounded-lg text-sm">

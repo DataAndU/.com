@@ -1,8 +1,9 @@
 "use client";
+import { OneTimeHint } from "@/components/one-time-hint";
 
 import { ListingPhoto } from "@/components/listing-photo";
 import { ListingForm, ListingFormPayload } from "@/components/listing-form";
-import { useMe } from "@/lib/api/account";
+import { useMe, useUpdateRole } from "@/lib/api/account";
 import { useCreateListing, useDeleteListing, useMyListings, useUpdateListingStatus } from "@/lib/api/listings";
 import { ExternalLink, List as ListIcon, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -19,6 +20,7 @@ export default function MyListingsPage() {
   const deleteMutation = useDeleteListing();
   const statusMutation = useUpdateListingStatus();
   const router = useRouter();
+  const updateRole = useUpdateRole();
   const [isCreating, setIsCreating] = useState(false);
   // "+ Post" links here with ?new=1 to open the posting flow directly.
   useEffect(() => {
@@ -53,10 +55,16 @@ export default function MyListingsPage() {
     <div className="mx-auto max-w-md p-8 text-center">
       <h1 className="text-xl font-semibold">Post availability</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        This is a customer account, so it can book but not post. To offer a service, space, delivery or travel,
-        sign up with another email and choose &quot;I want to offer&quot;.
+        You&apos;re in Find mode. Switch to Provide mode to post a service, space, delivery or trip.
+        Same account; you can switch back any time.
       </p>
-      <Link href="/home" className="mt-5 inline-block rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">Back to Explore</Link>
+      <button type="button" disabled={updateRole.isPending}
+        onClick={() => updateRole.mutate({ role: "provider" }, { onSuccess: () => { setIsCreating(true); void queryClient.invalidateQueries(); } })}
+        className="mt-5 w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60" data-testid="switch-to-provide">
+        {updateRole.isPending ? "Switching…" : "Switch to Provide mode"}
+      </button>
+      {updateRole.isError && <p role="alert" className="mt-2 text-xs text-red-500">{updateRole.error.message}</p>}
+      <Link href="/home" className="mt-3 inline-block text-sm text-muted-foreground">Back to Explore</Link>
     </div>
   );
 
@@ -102,6 +110,7 @@ export default function MyListingsPage() {
       </div>
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto">
+          {!isCreating && <OneTimeHint className="mb-4" hints={[{ id: "provider-times", text: "Post when you're available so people can find you. Use Schedule on each listing." }]} />}
           {(error || actionError) && <div role="alert" className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error?.message || actionError}</div>}
           {isLoading && <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto mt-10" />}
           {isCreating ? (

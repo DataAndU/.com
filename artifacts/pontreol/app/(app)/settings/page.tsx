@@ -1,4 +1,5 @@
 "use client";
+import { ModeSwitch } from "@/components/mode-switch";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -46,6 +47,7 @@ export default function SettingsPage() {
     <div className="h-full overflow-y-auto">
       <header className="border-b border-border bg-background px-5 py-4 md:px-8"><h1 className="text-xl font-semibold">{t("profile")}</h1><p className="mt-0.5 text-sm text-muted-foreground">{me.data.email}</p></header>
       <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-8">
+        <ModeSwitch />
         <AvailabilityToggle />
         <nav className="divide-y divide-border rounded-xl border border-border" aria-label="Profile">
           {[
@@ -53,6 +55,7 @@ export default function SettingsPage() {
             [t("myListings"), "/listings", me.data.role === "provider"],
             [t("plans"), "/billing", true],
             ["Admin", "/admin", !!me.data.isAdmin],
+            ["How Pontreol works", "/home?tutorial=1", true],
             [t("safety"), "/safety", true],
           ].filter(([, , show]) => show).map(([label, href]) => (
             <Link key={href as string} href={href as string} className="flex items-center justify-between px-4 py-3.5 text-sm font-medium hover:bg-foreground/5">

@@ -55,16 +55,20 @@ def me(user=Depends(current_user)):
 
 @router.put("/me/role")
 def set_role(body: RoleBody, db: Session = Depends(get_db), user=Depends(current_user)):
+    """One account, two modes: "buyer" = Find, "provider" = Provide.
+    The mode can be switched at any time; server-side permission checks
+    (require_role) still apply to whichever mode is active."""
     locked = db.scalar(select(User).where(User.id == user.id).with_for_update())
-    if locked.role is not None:
-        if locked.role == body.role:
-            return user_json(locked)
-        raise HTTPException(409, "Marketplace role is permanent")
-    if body.role == "provider":
-        # Count before assigning the role so this user is not counted yet.
+    if locked.role == body.role:
+        return user_json(locked)
+    first_choice = locked.role is None
+    if body.role == "provider" and not locked.founding_provider:
+        # Count before switching so this user is not counted yet. Only ever
+        # grants the badge; switching back does not remove it.
         providers = db.scalar(select(func.count()).select_from(User).where(User.role == "provider"))
         locked.founding_provider = providers < FOUNDING_PROVIDER_LIMIT
-        referrals.credit_referrer(db, locked)
+    if body.role == "provider" and first_choice:
+        referrals.credit_referrer(db, locked)  # once, on the account's first choice
     locked.role = body.role
     db.flush()
     return user_json(locked)
