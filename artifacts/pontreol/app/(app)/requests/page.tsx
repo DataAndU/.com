@@ -4,6 +4,7 @@ import { useBookings, useUpdateBookingStatus, useQuoteBooking, useQuoteResponse,
 import { useMe } from "@/lib/api/account";
 import { format } from "date-fns";
 import { BookingSteps } from "@/components/booking-steps";
+import { SentCelebration } from "@/components/celebration";
 import { Inbox, CheckCircle2, XCircle, Clock, Check } from "lucide-react";
 
 export default function RequestsPage() {
@@ -22,6 +23,7 @@ export default function RequestsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <SentCelebration />
       <div className="shrink-0 border-b border-border bg-card px-6 py-4">
         <h1 className="text-2xl font-bold">Requests & Bookings</h1>
       </div>

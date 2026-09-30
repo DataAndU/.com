@@ -119,6 +119,7 @@ export default function EventPackPage() {
       <div className="mx-auto max-w-3xl p-6">
         {outcomes ? (
           <div className="space-y-3 rounded-xl border border-border bg-card p-6">
+            <div className="text-5xl text-center" aria-hidden="true">🎉</div>
             <h2 className="text-lg font-semibold">Your requests</h2>
             {outcomes.map((o, i) => (
               <p key={i} className="flex items-center gap-2 text-sm">

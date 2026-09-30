@@ -4,6 +4,7 @@ import { ShareTrip } from "@/components/share-trip";
 import { useBooking, useUpdateBookingStatus, useQuoteBooking, useQuoteResponse, useCompleteBooking, useCreateReview } from "@/lib/api/bookings";
 import { format } from "date-fns";
 import { BookingSteps } from "@/components/booking-steps";
+import { BookingMoment } from "@/components/celebration";
 import { useState } from "react";
 import { ArrowLeft, Star } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -104,6 +105,7 @@ export default function RequestDetailPage() {
               )}
             </div>
 
+            <div className="mt-6"><BookingMoment status={booking.status} isBuyer={user?.id === booking.buyerId} /></div>
             <div className="mt-6 p-4 bg-background border border-border rounded-lg">
               <h4 className="font-medium text-sm mb-2">Booking Details</h4>
               <pre className="text-xs text-muted-foreground overflow-x-auto">

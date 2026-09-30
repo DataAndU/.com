@@ -82,7 +82,7 @@ export default function ListingDetailPage() {
     if (!serviceReqAt || isNaN(new Date(serviceReqAt).getTime())) return setBookingError("Invalid requested date");
     
     serviceBooking.mutate({ listingId: listing.id, requestedAt: new Date(serviceReqAt).toISOString(), note: bookingNote }, {
-      onSuccess: () => router.push("/requests"),
+      onSuccess: () => router.push("/requests?sent=1"),
       onError: (err) => setBookingError(err.message)
     });
   };
@@ -94,7 +94,7 @@ export default function ListingDetailPage() {
     if (new Date(equipEnd) <= new Date(equipStart)) return setBookingError("End date must be after start date");
 
     equipmentBooking.mutate({ listingId: listing.id, startsAt: new Date(equipStart).toISOString(), endsAt: new Date(equipEnd).toISOString(), operatorRequested: operatorReq, note: bookingNote }, {
-      onSuccess: () => router.push("/requests"),
+      onSuccess: () => router.push("/requests?sent=1"),
       onError: (err) => setBookingError(err.message)
     });
   };
@@ -106,7 +106,7 @@ export default function ListingDetailPage() {
     if (new Date(checkOut) <= new Date(checkIn)) return setBookingError("Check out must be after check in");
 
     spaceBooking.mutate({ listingId: listing.id, mode: spaceMode, checkIn: new Date(checkIn).toISOString(), checkOut: new Date(checkOut).toISOString(), note: bookingNote }, {
-      onSuccess: () => router.push("/requests"),
+      onSuccess: () => router.push("/requests?sent=1"),
       onError: (err) => setBookingError(err.message)
     });
   };
@@ -124,7 +124,7 @@ export default function ListingDetailPage() {
       dropoff: deliveryTo,
       note: bookingNote
     }, {
-      onSuccess: () => router.push("/requests"),
+      onSuccess: () => router.push("/requests?sent=1"),
       onError: (err) => setBookingError(err.message)
     });
   };
@@ -134,7 +134,7 @@ export default function ListingDetailPage() {
     if (!seats || isNaN(Number(seats)) || Number(seats) < 1) return setBookingError("Invalid seat count");
 
     travelBooking.mutate({ listingId: listing.id, seats: Number(seats), note: bookingNote }, {
-      onSuccess: () => router.push("/requests"),
+      onSuccess: () => router.push("/requests?sent=1"),
       onError: (err) => setBookingError(err.message)
     });
   };
