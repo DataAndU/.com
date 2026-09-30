@@ -3,6 +3,7 @@
 import { ShareTrip } from "@/components/share-trip";
 import { useBooking, useUpdateBookingStatus, useQuoteBooking, useQuoteResponse, useCompleteBooking, useCreateReview } from "@/lib/api/bookings";
 import { format } from "date-fns";
+import { BookingSteps } from "@/components/booking-steps";
 import { useState } from "react";
 import { ArrowLeft, Star } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -70,9 +71,7 @@ export default function RequestDetailPage() {
           <button onClick={() => router.back()} className="p-2 hover:bg-foreground/5 rounded-full"><ArrowLeft className="w-5 h-5" /></button>
           <h1 className="text-xl font-bold truncate">Booking Details</h1>
         </div>
-        <div className="px-3 py-1 bg-secondary text-secondary-foreground text-xs font-bold uppercase rounded-full">
-          {booking.status}
-        </div>
+        <BookingSteps status={booking.status} />
       </div>
       
       <div className="flex-1 overflow-y-auto p-6">

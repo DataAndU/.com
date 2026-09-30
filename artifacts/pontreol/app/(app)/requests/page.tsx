@@ -3,6 +3,7 @@
 import { useBookings, useUpdateBookingStatus, useQuoteBooking, useQuoteResponse, useCompleteBooking } from "@/lib/api/bookings";
 import { useMe } from "@/lib/api/account";
 import { format } from "date-fns";
+import { BookingSteps } from "@/components/booking-steps";
 import { Inbox, CheckCircle2, XCircle, Clock, Check } from "lucide-react";
 
 export default function RequestsPage() {
@@ -37,12 +38,10 @@ export default function RequestsPage() {
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <span className="text-xs font-semibold uppercase text-primary tracking-wider">{booking.category}</span>
-                    <h3 className="text-lg font-bold mt-1">Booking for Listing {booking.listingId.substring(0, 8)}...</h3>
+                    <h3 className="text-lg font-bold mt-1">{(booking as { listingTitle?: string | null }).listingTitle || "Booking"}</h3>
                     <p className="text-sm text-muted-foreground mt-1">Requested {format(new Date(booking.createdAt), "PPp")}</p>
                   </div>
-                  <div className="px-3 py-1 bg-secondary text-secondary-foreground text-xs font-bold uppercase rounded-full">
-                    {booking.status}
-                  </div>
+                  <BookingSteps status={booking.status} />
                 </div>
 
                 <div className="bg-background/50 border border-border rounded-lg p-4 text-sm mt-4">

@@ -203,8 +203,12 @@ def list_bookings(db: Session = Depends(get_db), user=Depends(current_user),
     stmt = select(Booking).where(or_(Booking.buyer_id == user.id, Booking.provider_id == user.id))
     if category: stmt = stmt.where(Booking.category == category)
     if status: stmt = stmt.where(Booking.status == status)
-    rows = db.scalars(stmt.order_by(Booking.created_at.desc()))
-    return {"items": [booking_json(x) for x in rows], "nextCursor": None}
+    rows = list(db.scalars(stmt.order_by(Booking.created_at.desc())))
+    # One batched title lookup so the list can show names, not ids.
+    titles = dict(db.execute(select(Listing.id, Listing.title).where(
+        Listing.id.in_({x.listing_id for x in rows}))).all()) if rows else {}
+    return {"items": [dict(booking_json(x), listingTitle=titles.get(x.listing_id)) for x in rows],
+            "nextCursor": None}
 
 
 # Delivery pickup/dropoff points are fixed per booking, so the public OSRM
