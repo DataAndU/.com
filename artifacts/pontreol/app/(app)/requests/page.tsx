@@ -25,7 +25,7 @@ export default function RequestsPage() {
     <div className="flex flex-col h-full overflow-hidden">
       <SentCelebration />
       <div className="shrink-0 border-b border-border bg-card px-6 py-4">
-        <h1 className="text-2xl font-bold">Requests & Bookings</h1>
+        <h1 className="text-xl font-semibold">Bookings</h1>
       </div>
       
       <div className="flex-1 overflow-y-auto p-6">
@@ -33,34 +33,19 @@ export default function RequestsPage() {
           
           {bookingsData?.items.map(booking => {
             const iAmProvider = user?.id === booking.providerId;
-            const otherParty = iAmProvider ? "Buyer" : "Provider";
 
             return (
               <div key={booking.id} className="bg-card border border-border rounded-xl p-5 shadow-sm">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <span className="text-xs font-semibold uppercase text-primary tracking-wider">{booking.category}</span>
-                    <h3 className="text-lg font-bold mt-1">{(booking as { listingTitle?: string | null }).listingTitle || "Booking"}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">Requested {format(new Date(booking.createdAt), "PPp")}</p>
-                  </div>
+                <div className="mb-3 space-y-2">
+                  <h3 className="text-lg font-semibold">{(booking as { listingTitle?: string | null }).listingTitle || "Booking"}</h3>
                   <BookingSteps status={booking.status} />
+                  <p className="text-sm text-muted-foreground">{iAmProvider ? "Request received" : "You asked"} {format(new Date(booking.createdAt), "d MMM, h:mm a")}</p>
                 </div>
 
-                <div className="bg-background/50 border border-border rounded-lg p-4 text-sm mt-4">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    <span className="text-muted-foreground">Booking ID:</span>
-                    <span className="font-mono text-right">{booking.id}</span>
-                    <span className="text-muted-foreground">{otherParty} ID:</span>
-                    <span className="font-mono text-right">{iAmProvider ? booking.buyerId : booking.providerId}</span>
-                    
-                    {booking.quotedPrice !== null && (
-                      <>
-                        <span className="text-muted-foreground">Quoted Price:</span>
-                        <span className="font-bold text-right text-primary">₹{booking.quotedPrice}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
+                {booking.quotedPrice !== null && (
+                  <p className="mt-3 text-sm">Price offered: <span className="font-semibold text-primary">₹{booking.quotedPrice.toLocaleString("en-IN")}</span></p>
+                )}
+                <a href={`/requests/${booking.id}`} className="mt-2 inline-block text-sm text-primary">See details →</a>
 
                 <div className="mt-4 flex gap-2 justify-end">
                   {booking.status === "requested" && iAmProvider && (
@@ -139,7 +124,8 @@ export default function RequestsPage() {
           {(!bookingsData?.items || bookingsData.items.length === 0) && (
             <div className="py-20 text-center border border-dashed border-border rounded-xl bg-card/50">
               <Inbox className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-muted-foreground">No requests or bookings found.</p>
+              <p className="text-muted-foreground">No bookings yet.</p>
+              <a href="/home" className="mt-3 inline-block text-sm text-primary">Find help nearby →</a>
             </div>
           )}
         </div>

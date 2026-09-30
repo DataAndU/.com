@@ -22,6 +22,8 @@ DESTRUCTIVE = re.compile(r"\b(DROP|TRUNCATE|DELETE|UPDATE|RENAME|ALTER)\b", re.I
 # The only ALTER forms allowed: purely additive / constraint-relaxing.
 ALLOWED_ALTER = [
     re.compile(r"^ALTER TABLE \w+ ADD COLUMN IF NOT EXISTS \w+ [A-Z0-9_() ]+$", re.IGNORECASE),
+    # Same, with a simple quoted default such as DEFAULT '[]' (no quotes/semicolons inside).
+    re.compile(r"^ALTER TABLE \w+ ADD COLUMN IF NOT EXISTS \w+ [A-Z0-9_() ]+ DEFAULT '[^';]*'$", re.IGNORECASE),
     re.compile(r"^ALTER TABLE \w+ ALTER COLUMN \w+ DROP NOT NULL$", re.IGNORECASE),
 ]
 

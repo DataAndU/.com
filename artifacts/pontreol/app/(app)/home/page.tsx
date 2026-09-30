@@ -29,7 +29,7 @@ export default function HomePage() {
   const [searchError, setSearchError] = useState("");
 
   const coords = location.status === "ready" ? location.coords : null;
-  const { data: summary, isLoading, error } = useHomeSummary(coords, RADIUS_KM);
+  const { data: summary, error } = useHomeSummary(coords, RADIUS_KM);
 
   // Download the Leaflet chunk while the location permission is pending.
   useEffect(() => { void loadMapView(); }, []);
@@ -41,11 +41,6 @@ export default function HomePage() {
     () => (summary?.nearbyListings || []).filter((listing) => !onlyAvailable || listing.availableNow),
     [summary, onlyAvailable]);
 
-  const nearbyCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const listing of summary?.nearbyListings || []) counts[listing.category] = (counts[listing.category] || 0) + 1;
-    return counts;
-  }, [summary]);
 
   const handleManualSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,81 +72,63 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden relative">
       {/* Keep controls outside Leaflet's layers and below the mobile navigation. */}
-      <div className="shrink-0 w-full p-3 border-b border-border bg-background">
+      <div className="shrink-0 w-full px-4 pt-4 pb-3 border-b border-border bg-background space-y-3">
         <HomeBanner />
-        <form onSubmit={handleManualSearch} className="bg-card border border-border shadow-xl rounded-xl flex items-center p-2 gap-2">
-          <button type="button" onClick={() => { setSearchError(""); locate(); }} className="p-2 text-primary hover:bg-foreground/5 rounded-lg" title="Use GPS" aria-label="Use my current location">
-            <Navigation className="w-5 h-5" />
-          </button>
-          <input 
-            type="text" 
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Search address or city..."
-            aria-label="Search address or city"
-            className="flex-1 min-w-0 bg-transparent border-none focus:outline-none text-sm px-2"
-          />
-          <button type="submit" aria-label="Search location" disabled={searching} className="p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">
-            {searching ? <div className="w-5 h-5 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" /> : <Search className="w-5 h-5" />}
-          </button>
-        </form>
+        <h1 className="text-xl font-semibold">What do you need?</h1>
 
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <Link href="/discover?now=1" className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500" data-testid="button-need-today">
-            <Zap className="h-4 w-4" /> Need it today
-          </Link>
-          <Link href="/emergency" className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-500" data-testid="button-emergency">
-            <Siren className="h-4 w-4" /> Emergency help
-          </Link>
-        </div>
-
-        <div className="mt-2 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1" aria-label="Popular needs">
+        <div className="grid grid-cols-4 gap-2" aria-label="Popular needs">
           {[
             ["🔧", "Plumber", "q=plumber"], ["⚡", "Electrician", "q=electrician"], ["🚚", "Tempo", "q=tempo"],
             ["🍳", "Cook", "q=cook"], ["🧹", "Cleaning", "q=clean"], ["🚗", "Driver", "q=driver"],
-            ["🪚", "Carpenter", "q=carpenter"], ["🏛️", "Hall", "category=spaces"], ["💇", "Beauty", "q=beauty"],
+            ["🏛️", "Hall", "category=spaces"], ["🔍", "Other", ""],
           ].map(([emoji, label, query]) => (
-            <Link key={label} href={`/discover?${query}`}
-              className="flex w-[4.5rem] shrink-0 flex-col items-center gap-1 rounded-xl border border-border bg-card py-2 text-[11px] font-medium hover:border-primary">
+            <Link key={label} href={query ? `/discover?${query}` : "/discover"}
+              className="flex flex-col items-center gap-1 rounded-xl bg-card border border-border py-2.5 text-xs font-medium active:scale-95 transition-transform">
               <span className="text-2xl leading-none" aria-hidden="true">{emoji}</span>{label}
             </Link>
           ))}
         </div>
 
-        {summary && (
-          <div className="mt-2 text-xs space-y-2">
-            {availableCount > 0 && (
-              <button type="button" onClick={() => setOnlyAvailable(!onlyAvailable)}
-                className="flex w-full items-center gap-2 rounded-lg bg-emerald-500/15 px-3 py-2 text-left text-sm font-semibold text-emerald-500">
-                <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>
-                {availableCount} {availableCount === 1 ? "helper is" : "helpers are"} free near you right now
-                <span className="ml-auto text-xs font-normal underline">{onlyAvailable ? "Show all" : "Show only them"}</span>
-              </button>
-            )}
-            <div>
-              {summary.nearbyListings.length > 0
-                ? <><span className="font-bold">{summary.nearbyListings.length}</span> {summary.nearbyListings.length === 1 ? "listing" : "listings"} within {RADIUS_KM} km of you · Tap a pin to preview</>
-                : <>What do you need nearby today?</>}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {availableCount > 0 && (
-                <button type="button" onClick={() => setOnlyAvailable(!onlyAvailable)} aria-pressed={onlyAvailable}
-                  className={`px-2 py-0.5 rounded font-semibold ${onlyAvailable ? "bg-green-500 text-white" : "bg-green-500/15 text-green-400"}`}
-                  data-testid="filter-available-now">
-                  ● Available now {availableCount}
-                </button>
-              )}
-              {summary.categories.map(c => (
-                <span key={c.category} className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded uppercase font-semibold">
-                  {c.category} {nearbyCounts[c.category] || 0}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        <div role="status" className="text-xs text-muted-foreground mt-2">
-          {searchError || locationMessage || (isLoading ? "Loading nearby listings…" : error ? "Could not load listings. Please try again." : summary?.nearbyListings.length === 0 ? `No active listings within ${RADIUS_KM} km. Search another location or add a listing from My Listings.` : null)}
+        <div className="flex gap-2">
+          <Link href="/discover?now=1" className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground" data-testid="button-need-today">
+            <Zap className="h-4 w-4" /> Need it today
+          </Link>
+          <Link href="/emergency" className="flex items-center justify-center gap-1.5 rounded-xl border border-red-500/50 px-4 py-3 text-sm font-semibold text-red-500" data-testid="button-emergency">
+            <Siren className="h-4 w-4" /> Urgent
+          </Link>
         </div>
+
+        {availableCount > 0 && (
+          <button type="button" onClick={() => setOnlyAvailable(!onlyAvailable)} aria-pressed={onlyAvailable} data-testid="filter-available-now"
+            className="flex w-full items-center gap-2 text-left text-sm text-emerald-600 dark:text-emerald-400">
+            <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>
+            <span className="font-medium">{availableCount} {availableCount === 1 ? "helper is" : "helpers are"} free near you</span>
+            <span className="ml-auto text-xs underline">{onlyAvailable ? "Show all" : "Show only them"}</span>
+          </button>
+        )}
+
+        <form onSubmit={handleManualSearch} className="flex items-center gap-2 text-sm">
+          <button type="button" onClick={() => { setSearchError(""); locate(); }} className="p-2 -ml-2 text-primary" title="Use my location" aria-label="Use my current location">
+            <Navigation className="w-4 h-4" />
+          </button>
+          <input
+            type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder={coords ? "Near you · type another area to change" : "Type your area or city"}
+            aria-label="Search address or city"
+            className="flex-1 min-w-0 bg-transparent border-b border-border py-1.5 focus:outline-none focus:border-primary"
+          />
+          <button type="submit" aria-label="Search location" disabled={searching} className="p-2 text-primary">
+            {searching ? <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" /> : <Search className="w-4 h-4" />}
+          </button>
+        </form>
+
+        {(searchError || locationMessage || error) && (
+          <p role="status" className="text-xs text-muted-foreground">
+            {searchError || locationMessage || "Could not load helpers. Please try again."}
+          </p>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 relative z-0">

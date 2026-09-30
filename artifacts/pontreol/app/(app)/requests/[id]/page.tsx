@@ -10,21 +10,28 @@ import { ArrowLeft, Star } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useMe } from "@/lib/api/account";
 import { uploadMedia } from "@/lib/api/listings";
-import { MapContainer, TileLayer, Polyline, useMap } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
+import dynamic from "next/dynamic";
 
-function RouteMap({ route }: { route: any }) {
-  if (!route || !route.geometry) return null;
-  const positions = route.geometry.coordinates.map((c: any) => [c[1], c[0]]); // GeoJSON is [lng, lat]
-  
-  return (
-    <div className="h-64 rounded-xl overflow-hidden border border-border mt-4">
-      <MapContainer bounds={positions} zoomControl={false} className="w-full h-full">
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        <Polyline positions={positions} color="hsl(173 58% 39%)" weight={4} />
-      </MapContainer>
-    </div>
-  );
+const RouteMap = dynamic(() => import("@/components/route-map"), { ssr: false });
+
+// Booking details in plain words instead of raw data.
+const LABELS: Record<string, string> = {
+  requestedAt: "When", startsAt: "From", endsAt: "Until", checkIn: "Check-in", checkOut: "Check-out",
+  pickupAt: "Pickup time", pickup: "Pickup", dropoff: "Drop-off", itemDescription: "What", seats: "Seats",
+  note: "Note", mode: "Booking type", operatorRequested: "Operator needed",
+};
+
+function detailRows(details: Record<string, unknown> | null | undefined): [string, string][] {
+  return Object.entries(details || {}).flatMap(([key, value]): [string, string][] => {
+    if (value === null || value === undefined || value === "") return [];
+    let text: string;
+    if (typeof value === "boolean") text = value ? "Yes" : "No";
+    else if (typeof value === "object" && value && "label" in value) text = String((value as { label: unknown }).label);
+    else if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) text = new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    else if (typeof value === "object") return [];
+    else text = String(value);
+    return [[LABELS[key] || key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), text]];
+  });
 }
 
 export default function RequestDetailPage() {
@@ -67,10 +74,10 @@ export default function RequestDetailPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="shrink-0 border-b border-border bg-card px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.back()} className="p-2 hover:bg-foreground/5 rounded-full"><ArrowLeft className="w-5 h-5" /></button>
-          <h1 className="text-xl font-bold truncate">Booking Details</h1>
+      <div className="shrink-0 border-b border-border bg-background px-4 py-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-foreground/5 rounded-full" aria-label="Back"><ArrowLeft className="w-5 h-5" /></button>
+          <h1 className="text-lg font-semibold truncate">Booking</h1>
         </div>
         <BookingSteps status={booking.status} />
       </div>
@@ -79,39 +86,21 @@ export default function RequestDetailPage() {
         <div className="max-w-3xl mx-auto space-y-6">
           
           <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4">Info</h2>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground block mb-1">Booking ID</span>
-                <span className="font-mono">{booking.id}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block mb-1">Listing ID</span>
-                <span className="font-mono">{booking.listingId}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block mb-1">Category</span>
-                <span className="capitalize">{booking.category}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block mb-1">Created At</span>
-                <span>{format(new Date(booking.createdAt), "PPp")}</span>
-              </div>
-              {booking.quotedPrice !== null && (
-                <div>
-                  <span className="text-muted-foreground block mb-1">Price</span>
-                  <span className="font-bold text-primary text-lg">₹{booking.quotedPrice}</span>
-                </div>
-              )}
-            </div>
+            <a href={`/discover/${booking.listingId}`} className="text-lg font-semibold hover:text-primary">View the listing →</a>
+            <p className="mt-1 text-sm text-muted-foreground">Asked on {format(new Date(booking.createdAt), "d MMM, h:mm a")}</p>
+            {booking.quotedPrice !== null && (
+              <p className="mt-3 text-sm">Price offered: <span className="font-semibold text-primary text-lg">₹{booking.quotedPrice.toLocaleString("en-IN")}</span></p>
+            )}
 
             <div className="mt-6"><BookingMoment status={booking.status} isBuyer={user?.id === booking.buyerId} /></div>
-            <div className="mt-6 p-4 bg-background border border-border rounded-lg">
-              <h4 className="font-medium text-sm mb-2">Booking Details</h4>
-              <pre className="text-xs text-muted-foreground overflow-x-auto">
-                {JSON.stringify(booking.details, null, 2)}
-              </pre>
-            </div>
+            <dl className="mt-6 divide-y divide-border rounded-lg border border-border text-sm">
+              {detailRows(booking.details).map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4 px-4 py-2.5">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="text-right font-medium break-words min-w-0">{value}</dd>
+                </div>
+              ))}
+            </dl>
 
             {["travel", "services", "delivery"].includes(booking.category) && user?.id === booking.buyerId && !["declined", "cancelled"].includes(booking.status) && (
               <ShareTrip bookingId={booking.id} category={booking.category} />

@@ -30,6 +30,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
   
   const [travelOrigin, setTravelOrigin] = useState("");
   const [nowOnly, setNowOnly] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [dealsOnly, setDealsOnly] = useState(false);
   const [deliveryFrom, setDeliveryFrom] = useState("");
   const [deliveryTo, setDeliveryTo] = useState("");
@@ -202,7 +203,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                   onChange={e => setCategory(e.target.value)}
                   className="w-full h-10 bg-input border border-border rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="">All Categories</option>
+                  <option value="">Everything</option>
                   <option value="services">Services</option>
                   <option value="spaces">Spaces</option>
                   <option value="delivery">Delivery</option>
@@ -216,7 +217,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                 type="text" 
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search listings..." 
+                placeholder="Plumber, cook, tempo…" 
                 className="w-full h-10 pl-10 pr-4 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -226,7 +227,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
             </button>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3 p-3 bg-background/50 rounded-lg border border-border">
+          <div className="flex flex-wrap items-center gap-2">
             <button type="button" aria-pressed={nowOnly}
               onClick={() => { const next = !nowOnly; setNowOnly(next); setFilters((prev) => { const f = { ...prev }; if (next) f.availableNow = "true"; else delete f.availableNow; return f; }); }}
               className={`h-8 rounded-full px-3 text-xs font-semibold border ${nowOnly ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground"}`}>
@@ -237,6 +238,14 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
               className={`h-8 rounded-full px-3 text-xs font-semibold border ${dealsOnly ? "bg-amber-500 text-black border-amber-500" : "border-border text-muted-foreground"}`}>
               ⚡ Deals
             </button>
+            {activeCategory !== "delivery" && activeCategory !== "travel" && (
+              <button type="button" onClick={() => setShowFilters(!showFilters)} aria-expanded={showFilters}
+                className="h-8 rounded-full px-3 text-xs font-semibold border border-border text-muted-foreground">
+                {showFilters ? "Fewer filters ▴" : "More filters ▾"}
+              </button>
+            )}
+            {(showFilters || activeCategory === "delivery" || activeCategory === "travel") && (
+            <div className="w-full flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium uppercase">Price:</span>
               <input type="number" placeholder="Min ₹" value={priceMin} onChange={e=>setPriceMin(e.target.value)} className="w-20 h-8 bg-input border border-border rounded px-2 text-xs" />
@@ -283,6 +292,8 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                 </div>
               </>
             )}
+            </div>
+            )}
           </div>
         </form>
         {geocodeError && (
@@ -306,15 +317,14 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {listingsData?.items.map(listing => (
                 <div key={listing.id} onClick={() => router.push(`/discover/${listing.id}`)} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm flex flex-col group cursor-pointer hover:border-primary/50 transition-colors">
-                  <div className="aspect-video bg-input relative overflow-hidden">
+                  <div className={`${listing.photos?.length ? "aspect-video" : "h-20"} bg-muted relative overflow-hidden`}>
                     {listing.photos && listing.photos.length > 0 ? (
                       <ListingPhoto photo={listing.photos[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">No Image</div>
+                      <div className="w-full h-full flex items-center justify-center text-3xl" aria-hidden="true">
+                        {{ services: "🛠️", spaces: "🏛️", delivery: "🚚", travel: "🚗" }[listing.category as string] ?? "📍"}
+                      </div>
                     )}
-                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur text-white text-[10px] uppercase font-bold px-2 py-1 rounded">
-                      {listing.category}
-                    </div>
                     {listing.dealPercent ? (
                       <div className="absolute bottom-2 left-2 bg-amber-500 text-black text-[10px] font-bold px-2 py-1 rounded">⚡ {listing.dealPercent}% off today</div>
                     ) : null}
@@ -351,7 +361,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                         <span className="ml-1 text-primary">({listing.distanceKm.toFixed(1)} km)</span>
                       )}
                     </div>
-                    <div className="text-muted-foreground text-sm mb-4 line-clamp-2">{listing.description}</div>
+                    <div className="mb-3" />
                     
                     <div className="mt-auto flex items-center justify-between">
                       <div className="flex flex-col">
@@ -363,9 +373,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                         )}
                         {listing.pricingMode === "negotiable" && <span className="text-[10px] text-muted-foreground">Price can be discussed</span>}
                       </div>
-                      <button className="px-4 py-1.5 bg-secondary text-secondary-foreground rounded-lg text-xs font-medium hover:bg-secondary/90 transition-colors">
-                        View
-                      </button>
+                      <span className="text-sm font-medium text-primary">View →</span>
                     </div>
                   </div>
                 </div>

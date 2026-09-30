@@ -31,16 +31,16 @@ export const LANGUAGES = [
 export type LangCode = (typeof LANGUAGES)[number]["code"];
 
 const en = {
-  "nav.map": "Map",
+  "nav.map": "Home",
   "nav.categories": "Categories",
-  "nav.discover": "Discover",
+  "nav.discover": "Search",
   "nav.myListings": "My Listings",
-  "nav.requests": "Requests",
-  "nav.messages": "Messages",
-  "nav.notifications": "Notifications",
+  "nav.requests": "Bookings",
+  "nav.messages": "Chats",
+  "nav.notifications": "Alerts",
   "nav.poster": "Poster",
   "nav.settings": "Settings",
-  "nav.billing": "Billing",
+  "nav.billing": "Plans",
   "nav.admin": "Admin",
   "account": "Account",
   "manageProfile": "Manage profile",

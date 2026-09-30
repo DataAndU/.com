@@ -12,10 +12,7 @@ import {
   Settings, 
   CreditCard, 
   ShieldAlert,
-  Menu,
-  X,
   Bell,
-  Grid,
   QrCode,
   Building,
   MoreHorizontal
@@ -28,19 +25,19 @@ import { useMe } from "@/lib/api/account";
 import { LanguagePicker, useT } from "@/lib/i18n";
 import { ThemeToggle } from "@/components/theme-toggle";
 
+// Few, plainly named destinations. Everything else lives inside these pages.
 const routes = [
-  { name: "Map", key: "nav.map" as const, path: "/home", icon: MapPin },
-  { name: "Categories", key: "nav.categories" as const, path: "/categories", icon: Grid },
-  { name: "Discover", key: "nav.discover" as const, path: "/discover", icon: Search },
-  { name: "My Listings", key: "nav.myListings" as const, path: "/listings", icon: List, providerOnly: true },
-  { name: "Requests", key: "nav.requests" as const, path: "/requests", icon: Inbox },
-  { name: "Messages", key: "nav.messages" as const, path: "/messages", icon: MessageSquare },
-  { name: "Notifications", key: "nav.notifications" as const, path: "/notifications", icon: Bell },
-  { name: "My Society", key: "nav.society" as const, path: "/society", icon: Building },
-  { name: "Poster", key: "nav.poster" as const, path: "/poster", icon: QrCode },
-  { name: "Settings", key: "nav.settings" as const, path: "/settings", icon: Settings },
-  { name: "Billing", key: "nav.billing" as const, path: "/billing", icon: CreditCard },
-  { name: "Admin", key: "nav.admin" as const, path: "/admin", icon: ShieldAlert, adminOnly: true },
+  { key: "nav.map" as const, path: "/home", icon: MapPin },
+  { key: "nav.discover" as const, path: "/discover", icon: Search },
+  { key: "nav.requests" as const, path: "/requests", icon: Inbox },
+  { key: "nav.messages" as const, path: "/messages", icon: MessageSquare },
+  { key: "nav.myListings" as const, path: "/listings", icon: List, providerOnly: true },
+  { key: "nav.notifications" as const, path: "/notifications", icon: Bell },
+  { key: "nav.society" as const, path: "/society", icon: Building },
+  { key: "nav.poster" as const, path: "/poster", icon: QrCode, providerOnly: true },
+  { key: "nav.settings" as const, path: "/settings", icon: Settings },
+  { key: "nav.billing" as const, path: "/billing", icon: CreditCard },
+  { key: "nav.admin" as const, path: "/admin", icon: ShieldAlert, adminOnly: true },
 ];
 
 export function AppSidebar() {
@@ -52,17 +49,12 @@ export function AppSidebar() {
   return (
     <>
       {/* Mobile Topbar */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card shrink-0">
-        <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="Pontreol" className="w-8 h-8" />
-          <span className="font-bold uppercase tracking-tight text-foreground">Pontreol</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <AccountMenu size={8} />
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground">
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
+      <div className="md:hidden flex items-center justify-between px-4 py-2.5 border-b border-border bg-background shrink-0">
+        <Link href="/home" className="flex items-center gap-2">
+          <img src="/logo.svg" alt="" className="w-7 h-7" />
+          <span className="font-semibold tracking-tight">Pontreol</span>
+        </Link>
+        <AccountMenu size={8} />
       </div>
 
       {/* Sidebar (Desktop) / Mobile Menu */}

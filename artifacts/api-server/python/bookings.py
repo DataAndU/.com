@@ -244,7 +244,7 @@ def get_booking(booking_id: str, db: Session = Depends(get_db), user=Depends(cur
             route = _route_cache_get(coordinates)
             if route is None:
                 response = httpx.get(f"https://router.project-osrm.org/route/v1/driving/{coordinates}",
-                                     params={"overview": "full", "geometries": "geojson"}, timeout=8,
+                                     params={"overview": "full", "geometries": "geojson"}, timeout=4,
                                      headers={"User-Agent": "Pontreol/1.0 (https://pontreol.com)"})
                 response.raise_for_status()
                 routes = response.json().get("routes", [])
@@ -252,7 +252,9 @@ def get_booking(booking_id: str, db: Session = Depends(get_db), user=Depends(cur
                 route = {"geometry": routes[0]["geometry"], "provider": "OSRM"}
                 _route_cache_put(coordinates, route)
         except (httpx.HTTPError, KeyError, TypeError, ValueError):
-            raise HTTPException(503, "Free route service is temporarily unavailable")
+            # The route map is optional: an outage of the free route service
+            # must never make the booking itself fail to load.
+            route = None
     return {"booking": booking_json(booking), "route": route}
 
 

@@ -304,3 +304,12 @@ def test_missing_column_returns_clear_424_not_500():
         app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", "") != "/api/__schema_probe"]
     assert response.status_code == 424
     assert "apply_migrations" in response.json()["detail"] and "SELECT" not in response.text
+
+
+def test_every_shipped_migration_passes_the_additive_check():
+    import apply_migrations
+    for path in sorted(apply_migrations.MIGRATIONS.glob("*.sql")):
+        for statement in apply_migrations.statements(path.read_text()):
+            assert not apply_migrations.destructive(statement), (path.name, statement)
+    assert apply_migrations.destructive("ALTER TABLE users ADD COLUMN IF NOT EXISTS x TEXT DEFAULT 'a'; DROP TABLE users")
+    assert apply_migrations.destructive("ALTER TABLE users DROP COLUMN email")
