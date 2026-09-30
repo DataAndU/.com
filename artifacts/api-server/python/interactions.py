@@ -215,7 +215,8 @@ def review(booking_id: str, body: ReviewBody, db: Session = Depends(get_db), use
 
 def preference_json(x):
     return dict(emailBookings=x.email_bookings, emailMessages=x.email_messages,
-                browserBookings=x.browser_bookings, browserMessages=x.browser_messages)
+                browserBookings=x.browser_bookings, browserMessages=x.browser_messages,
+                emailReminders=x.email_reminders is not False)
 
 
 class PreferenceBody(BaseModel):
@@ -223,6 +224,7 @@ class PreferenceBody(BaseModel):
     emailMessages: bool
     browserBookings: bool
     browserMessages: bool
+    emailReminders: bool = True
 
 
 @router.get("/notification-preferences")
@@ -238,6 +240,7 @@ def save_preferences(body: PreferenceBody, db: Session = Depends(get_db), user=D
     pref = db.get(NotificationPreference, user.id) or NotificationPreference(user_id=user.id)
     pref.email_bookings, pref.email_messages = body.emailBookings, body.emailMessages
     pref.browser_bookings, pref.browser_messages = body.browserBookings, body.browserMessages
+    pref.email_reminders = body.emailReminders
     db.add(pref); db.flush()
     return preference_json(pref)
 

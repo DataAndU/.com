@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, Float,
+from sqlalchemy import (Boolean, CheckConstraint, Column, Date, DateTime, Float,
                         ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, text)
 from sqlalchemy.orm import declarative_base
 
@@ -48,6 +48,8 @@ class User(Base):
     referred_by = Column(String(36), ForeignKey("users.id"))
     referral_credit_months = Column(Integer, nullable=False, default=0, server_default="0")
     review_count = Column(Integer, nullable=False, default=0)
+    # Morning reminder (migration 0011): India date of the last reminder.
+    last_reminded_on = Column(Date)
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
     __table_args__ = (Index("ix_users_email_lower", func.lower(email)),)
@@ -244,6 +246,7 @@ class NotificationPreference(Base):
     email_messages = Column(Boolean, nullable=False, default=True)
     browser_bookings = Column(Boolean, nullable=False, default=True)
     browser_messages = Column(Boolean, nullable=False, default=True)
+    email_reminders = Column(Boolean, nullable=False, default=True, server_default="true")
 
 
 class NotificationOutbox(Base):

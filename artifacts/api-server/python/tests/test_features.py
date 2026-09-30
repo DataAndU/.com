@@ -509,3 +509,26 @@ def test_last_minute_deal_and_earnings(people, maker):
     listing_price = buyer.get("/api/listings/l-prov").json()["price"]
     assert summary["thisMonth"] == {"jobs": 2, "amount": round(1200 + listing_price)}
     assert buyer.get("/api/me/earnings").status_code == 403
+
+
+def test_morning_reminders_once_per_day_and_respect_opt_out(people, maker):
+    from models import Notification, NotificationOutbox, NotificationPreference
+    from reminders import enqueue_morning_reminders
+    from sqlalchemy import select
+    early = datetime(2026, 10, 1, 1, 0, tzinfo=timezone.utc)      # 6:30 AM IST
+    morning = datetime(2026, 10, 1, 3, 0, tzinfo=timezone.utc)    # 8:30 AM IST
+    with maker() as db:
+        db.add(NotificationPreference(user_id="prov2", email_reminders=False))
+        db.commit()
+    with maker() as db:
+        assert enqueue_morning_reminders(db, early) == 0
+        assert enqueue_morning_reminders(db, morning) == 2
+        db.commit()
+    with maker() as db:
+        assert enqueue_morning_reminders(db, morning) == 0          # not twice the same day
+        notices = db.scalars(select(Notification.user_id).where(Notification.type == "morning_reminder")).all()
+        emails = db.scalars(select(NotificationOutbox.user_id)).all()
+    assert sorted(notices) == ["prov", "prov2"]
+    assert "prov" in emails and "prov2" not in emails and "buyer" not in notices
+    prefs = people["prov2"].get("/api/notification-preferences").json()
+    assert prefs["emailReminders"] is False

@@ -60,7 +60,17 @@ async def run_worker(stop: asyncio.Event):
     if not resend_configured():
         logger.warning("Notification email disabled: set RESEND_FROM and RESEND_API_KEY; "
                        "notifications stay queued")
+    def reminders():
+        from reminders import enqueue_morning_reminders
+        if SessionLocal is not None:
+            with SessionLocal.begin() as session:
+                enqueue_morning_reminders(session)
+
     while not stop.is_set():
+        try:
+            await asyncio.to_thread(reminders)
+        except Exception:
+            logger.warning("Morning reminder batch failed; will retry")
         if resend_configured():
             try:
                 await asyncio.to_thread(batch)

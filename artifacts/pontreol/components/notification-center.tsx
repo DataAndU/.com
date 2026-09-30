@@ -16,6 +16,7 @@ type Preference = {
   emailMessages: boolean;
   browserBookings: boolean;
   browserMessages: boolean;
+  emailReminders?: boolean;
 };
 
 type Notice = {
@@ -32,6 +33,7 @@ const preferenceLabels: Array<[keyof Preference, string]> = [
   ["emailMessages", "New messages by email"],
   ["browserBookings", "Booking browser alerts"],
   ["browserMessages", "Message browser alerts"],
+  ["emailReminders", "Morning reminders (providers, 8 AM email)"],
 ];
 
 export function NotificationCenter() {
@@ -123,7 +125,7 @@ export function NotificationCenter() {
           {draft && preferenceLabels.map(([key, label]) => (
             <label className="flex cursor-pointer items-center justify-between gap-3 text-sm" key={key}>
               <span>{label}</span>
-              <input data-testid={`toggle-${key}`} type="checkbox" checked={draft[key]} disabled={updatePreferences.isPending} onChange={(event) => savePreferences({ ...draft, [key]: event.target.checked })} className="h-4 w-4 accent-primary" />
+              <input data-testid={`toggle-${key}`} type="checkbox" checked={draft[key] !== false} disabled={updatePreferences.isPending} onChange={(event) => savePreferences({ ...draft, [key]: event.target.checked })} className="h-4 w-4 accent-primary" />
             </label>
           ))}
         </div>
