@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ArrowLeft, Star } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useMe } from "@/lib/api/account";
+import { uploadMedia } from "@/lib/api/listings";
 import { MapContainer, TileLayer, Polyline, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -39,6 +40,22 @@ export default function RequestDetailPage() {
 
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
+  const [reviewPhotos, setReviewPhotos] = useState<{ id: string; preview: string }[]>([]);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+
+  const addReviewPhotos = async (files: FileList | null) => {
+    if (!files) return;
+    setPhotoError(""); setPhotoBusy(true);
+    try {
+      for (const file of Array.from(files).slice(0, 4 - reviewPhotos.length)) {
+        const media = await uploadMedia(file, "reviewPhoto");
+        setReviewPhotos((current) => [...current, { id: media.id, preview: URL.createObjectURL(file) }]);
+      }
+    } catch (e) {
+      setPhotoError(e instanceof Error ? e.message : "Photo upload failed");
+    } finally { setPhotoBusy(false); }
+  };
 
   if (isLoading) return <div className="p-8 flex justify-center"><div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
   if (!data?.booking) return <div className="p-8 text-center">Booking not found</div>;
@@ -95,8 +112,8 @@ export default function RequestDetailPage() {
               </pre>
             </div>
 
-            {booking.category === "travel" && user?.id === booking.buyerId && !["declined", "cancelled"].includes(booking.status) && (
-              <ShareTrip bookingId={booking.id} />
+            {["travel", "services", "delivery"].includes(booking.category) && user?.id === booking.buyerId && !["declined", "cancelled"].includes(booking.status) && (
+              <ShareTrip bookingId={booking.id} category={booking.category} />
             )}
 
             {/* Delivery specific route map */}
@@ -196,6 +213,12 @@ export default function RequestDetailPage() {
             )}
           </div>
 
+          {booking.status === "completed" && user?.id === booking.buyerId && (
+            <a href={`/discover/${booking.listingId}`} className="block text-center rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-500" data-testid="button-book-again">
+              ↻ Book again
+            </a>
+          )}
+
           {booking.status === "completed" && (
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <h3 className="text-lg font-bold mb-4">Leave a Review</h3>
@@ -212,13 +235,29 @@ export default function RequestDetailPage() {
                 placeholder="Write your review here..."
                 className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm h-24 mb-4"
               />
+              <div className="mb-4">
+                <p className="text-sm font-medium mb-2">Add before / after photos (optional, up to 4)</p>
+                <div className="flex flex-wrap gap-2">
+                  {reviewPhotos.map((p) => (
+                    <img key={p.id} src={p.preview} alt="" className="h-20 w-20 rounded-lg object-cover border border-border" />
+                  ))}
+                  {reviewPhotos.length < 4 && (
+                    <label className="h-20 w-20 rounded-lg border border-dashed border-border flex items-center justify-center text-xs text-muted-foreground cursor-pointer">
+                      {photoBusy ? "Uploading…" : "+ Photo"}
+                      <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" disabled={photoBusy}
+                        onChange={(e) => void addReviewPhotos(e.target.files)} />
+                    </label>
+                  )}
+                </div>
+                {photoError && <p className="mt-1 text-xs text-red-400">{photoError}</p>}
+              </div>
               <button 
                 onClick={() => {
-                  reviewMutation.mutate({ bookingId: booking.id, rating, comment }, {
+                  reviewMutation.mutate({ bookingId: booking.id, rating, comment, photoIds: reviewPhotos.map((p) => p.id) }, {
                     onSuccess: () => alert("Review submitted!")
                   });
                 }}
-                disabled={reviewMutation.isPending || !comment.trim()}
+                disabled={reviewMutation.isPending || photoBusy || !comment.trim()}
                 className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50"
               >
                 {reviewMutation.isPending ? "Submitting..." : "Submit Review"}

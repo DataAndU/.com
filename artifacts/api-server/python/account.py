@@ -81,7 +81,7 @@ def provider(provider_id: str, db: Session = Depends(get_db), viewer=Depends(cur
     listings = db.scalars(select(Listing).where(
         Listing.provider_id == provider_id, Listing.status == "active")
         .order_by(Listing.created_at.desc(), Listing.id))
-    from common import listings_json, iso
+    from common import listings_json, iso, media_url
     reviews = list(db.scalars(select(Review).where(Review.subject_id == provider_id)
                               .order_by(Review.created_at.desc())))
     # Batched: one provider query + one photo query regardless of listing count.
@@ -89,4 +89,5 @@ def provider(provider_id: str, db: Session = Depends(get_db), viewer=Depends(cur
             "listings": listings_json(db, ((x, None) for x in listings)),
             "reviews": [dict(id=x.id, bookingId=x.booking_id, authorId=x.author_id,
                              subjectId=x.subject_id, rating=x.rating, comment=x.comment,
+                             photoUrls=[media_url(m) for m in (x.photo_ids or [])],
                              createdAt=iso(x.created_at)) for x in reviews]}

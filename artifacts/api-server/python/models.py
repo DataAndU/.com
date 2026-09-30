@@ -215,6 +215,7 @@ class Review(Base):
     subject_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     rating = Column(Integer, nullable=False)
     comment = Column(Text, nullable=False)
+    photo_ids = Column(JSON, nullable=False, default=list, server_default="[]")
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     __table_args__ = (UniqueConstraint("booking_id", "author_id"),)
 

@@ -5,12 +5,12 @@ import { BadgeCheck, Car, Clock } from "lucide-react";
 export const metadata: Metadata = { title: "Shared trip · Pontreol", robots: { index: false, follow: false } };
 
 type Trip = {
-  status: string; from: string | null; to: string | null; departureAt: string | null; vehicle: string | null;
+  category?: string; service?: string | null; status: string; from: string | null; to: string | null; departureAt: string | null; vehicle: string | null;
   seats: number | null; driverFirstName: string | null; driverVerified: boolean; updatedAt: string | null; expiresAt: string | null;
 };
 
 const STATUS: Record<string, string> = {
-  requested: "Requested — waiting for the driver", confirmed: "Confirmed", completed: "Completed",
+  requested: "Requested — waiting for confirmation", confirmed: "Confirmed", completed: "Completed",
   cancelled: "Cancelled", declined: "Declined",
 };
 
@@ -40,14 +40,14 @@ export default async function SharedTripPage({ params }: { params: Promise<{ tok
         ) : (
           <div className="space-y-4">
             <div className="text-center">
-              <p className="text-xs uppercase tracking-wide text-gray-400">Shared trip</p>
-              <h1 className="mt-1 text-xl font-semibold">{trip.from || "—"} → {trip.to || "—"}</h1>
+              <p className="text-xs uppercase tracking-wide text-gray-400">{trip.category && trip.category !== "travel" ? "Shared booking" : "Shared trip"}</p>
+              <h1 className="mt-1 text-xl font-semibold">{trip.category && trip.category !== "travel" ? (trip.service || "Booking") : `${trip.from || "—"} → ${trip.to || "—"}`}</h1>
               <p className="mt-2 inline-block rounded-full bg-primary/15 px-3 py-1 text-sm font-medium text-primary">{STATUS[trip.status] || trip.status}</p>
             </div>
             <dl className="space-y-3 rounded-xl border border-[#2a2d33] p-4 text-sm">
               {trip.departureAt && <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-gray-400" /><dt className="text-gray-400">Departure</dt><dd className="ml-auto">{new Date(trip.departureAt).toLocaleString("en-IN")}</dd></div>}
               {trip.vehicle && <div className="flex items-center gap-2"><Car className="h-4 w-4 text-gray-400" /><dt className="text-gray-400">Vehicle</dt><dd className="ml-auto">{trip.vehicle}{trip.seats ? ` · ${trip.seats} seat${trip.seats === 1 ? "" : "s"}` : ""}</dd></div>}
-              {trip.driverFirstName && <div className="flex items-center gap-2"><BadgeCheck className={`h-4 w-4 ${trip.driverVerified ? "text-sky-300" : "text-gray-500"}`} /><dt className="text-gray-400">Driver</dt><dd className="ml-auto">{trip.driverFirstName}{trip.driverVerified ? " · ID verified" : ""}</dd></div>}
+              {trip.driverFirstName && <div className="flex items-center gap-2"><BadgeCheck className={`h-4 w-4 ${trip.driverVerified ? "text-sky-300" : "text-gray-500"}`} /><dt className="text-gray-400">{trip.category && trip.category !== "travel" ? "Provider" : "Driver"}</dt><dd className="ml-auto">{trip.driverFirstName}{trip.driverVerified ? " · ID verified" : ""}</dd></div>}
             </dl>
             {trip.updatedAt && <p className="text-center text-xs text-gray-500">Last updated {new Date(trip.updatedAt).toLocaleString("en-IN")}. Refresh for the latest status.</p>}
           </div>

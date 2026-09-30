@@ -118,7 +118,7 @@ export function useUpdateAvailability() {
   });
 }
 
-export async function uploadMedia(file: File, purpose: "listingPhoto" | "verificationId") {
+export async function uploadMedia(file: File, purpose: "listingPhoto" | "verificationId" | "reviewPhoto") {
   // 1. Get upload URL
   const data = await fetchApi<{ mediaId: string; uploadUrl: string; objectPath: string; requiredHeaders: Record<string, string> }>("/media/uploads", {
     method: "POST",

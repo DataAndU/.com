@@ -107,6 +107,12 @@ export default function RequestsPage() {
                     </>
                   )}
 
+                  {booking.status === "completed" && !iAmProvider && (
+                    <a href={`/discover/${booking.listingId}`} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-500">
+                      ↻ Book again
+                    </a>
+                  )}
+
                   {booking.status === "confirmed" && (
                     <button 
                       onClick={() => completeMutation.mutate({ id: booking.id })}

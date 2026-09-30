@@ -103,6 +103,15 @@ export default function ProviderProfilePage() {
                     <span className="text-xs text-muted-foreground ml-2">{format(new Date(review.createdAt), "PP")}</span>
                   </div>
                   <p className="text-sm leading-relaxed">{review.comment}</p>
+                  {(review as { photoUrls?: string[] }).photoUrls?.length ? (
+                    <div className="mt-3 flex gap-2">
+                      {(review as { photoUrls?: string[] }).photoUrls!.map((url) => (
+                        <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                          <img src={url} alt="Review photo" loading="lazy" className="h-20 w-20 rounded-lg object-cover border border-border" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))}
               {(!reviews || reviews.length === 0) && (

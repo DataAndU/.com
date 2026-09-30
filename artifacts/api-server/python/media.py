@@ -53,7 +53,7 @@ class UploadBody(BaseModel):
 
 @router.post("/media/uploads")
 def request_upload(body: UploadBody, db: Session = Depends(get_db), user=Depends(current_user)):
-    if body.purpose not in {"listingPhoto", "verificationId"} or body.contentType not in TYPES:
+    if body.purpose not in {"listingPhoto", "verificationId", "reviewPhoto"} or body.contentType not in TYPES:
         raise HTTPException(422, "Unsupported upload purpose or image type")
     maximum = 200 * 1024 if body.purpose == "verificationId" else 2 * 1024 * 1024
     if body.sizeBytes > maximum:

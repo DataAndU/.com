@@ -104,7 +104,7 @@ export function useCompleteBooking() {
 }
 
 export function useCreateReview() {
-  return useMutation<any, Error, { bookingId: string; rating: number; comment: string }>({
+  return useMutation<any, Error, { bookingId: string; rating: number; comment: string; photoIds?: string[] }>({
     mutationFn: ({ bookingId, ...data }) => fetchApi(`/bookings/${bookingId}/reviews`, { method: "POST", body: JSON.stringify(data) }),
   });
 }

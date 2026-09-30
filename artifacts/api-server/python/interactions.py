@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from billing import free_contact_limit, is_paid
 from common import iso, provider_json
 from deps import current_user, get_db, require_role
-from models import (Booking, ContactUsage, Conversation, Listing, Message,
+from models import (Booking, ContactUsage, Conversation, Listing, Media, Message,
                     Notification, NotificationOutbox, NotificationPreference,
                     Review, User)
 from pagination import keyset_page
@@ -181,6 +181,7 @@ def send_message(conversation_id: str, body: MessageBody,
 class ReviewBody(BaseModel):
     rating: int = Field(ge=1, le=5)
     comment: str = Field(min_length=1, max_length=2000)
+    photoIds: list[str] = Field(default_factory=list, max_length=4)
 
 
 @router.post("/bookings/{booking_id}/reviews", status_code=201)
@@ -193,8 +194,15 @@ def review(booking_id: str, body: ReviewBody, db: Session = Depends(get_db), use
     if db.scalar(select(Review.id).where(Review.booking_id == booking.id, Review.author_id == user.id)):
         raise HTTPException(409, "You already reviewed this booking")
     subject_id = booking.provider_id if user.id == booking.buyer_id else booking.buyer_id
+    photo_ids = list(dict.fromkeys(body.photoIds))
+    if photo_ids:
+        owned_ready = set(db.scalars(select(Media.id).where(
+            Media.id.in_(photo_ids), Media.owner_id == user.id,
+            Media.purpose == "reviewPhoto", Media.status == "ready")))
+        if owned_ready != set(photo_ids):
+            raise HTTPException(422, "Review photos must be your own uploaded review photos")
     record = Review(booking_id=booking.id, author_id=user.id, subject_id=subject_id,
-                    rating=body.rating, comment=body.comment)
+                    rating=body.rating, comment=body.comment, photo_ids=photo_ids)
     db.add(record); db.flush()
     target = db.scalar(select(User).where(User.id == subject_id).with_for_update())
     total, count = db.execute(select(func.sum(Review.rating), func.count(Review.id)).where(
@@ -202,7 +210,7 @@ def review(booking_id: str, body: ReviewBody, db: Session = Depends(get_db), use
     target.rating, target.review_count = float(total or 0)/(count or 1), count
     return {"id": record.id, "bookingId": record.booking_id, "authorId": record.author_id,
             "subjectId": record.subject_id, "rating": record.rating,
-            "comment": record.comment, "createdAt": iso(record.created_at)}
+            "comment": record.comment, "photoIds": record.photo_ids, "createdAt": iso(record.created_at)}
 
 
 def preference_json(x):

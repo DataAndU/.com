@@ -1,5 +1,6 @@
-"""Share my trip: a traveller shares a read-only live status link for a
-travel booking with family. The link reveals no contact details, is stored
+"""Share my trip / job: a customer shares a read-only live status link for a
+travel, delivery or service booking with family (e.g. "the electrician is at
+my home"). The link reveals no contact details, is stored
 only as a hash, expires, and can be revoked."""
 import hashlib
 import secrets
@@ -16,6 +17,7 @@ from models import Booking, Listing, User
 
 router = APIRouter()
 SHARE_TTL = timedelta(hours=48)
+SHAREABLE = {"travel", "delivery", "services"}
 
 
 def token_hash(token):
@@ -30,8 +32,8 @@ def own_travel_booking(db, booking_id, user):
     booking = db.scalar(select(Booking).where(Booking.id == booking_id).with_for_update())
     if not booking or booking.buyer_id != user.id:
         raise HTTPException(404, "Booking not found")
-    if booking.category != "travel":
-        raise HTTPException(422, "Only travel bookings can be shared")
+    if booking.category not in SHAREABLE:
+        raise HTTPException(422, "This booking type cannot be shared")
     return booking
 
 
@@ -71,16 +73,18 @@ def shared_trip(token: str, db: Session = Depends(get_db)):
     if not token or len(token) > 64:
         raise missing
     booking = db.scalar(select(Booking).where(Booking.share_token_hash == token_hash(token)))
-    if (not booking or booking.category != "travel" or not booking.share_expires_at
+    if (not booking or booking.category not in SHAREABLE or not booking.share_expires_at
             or aware(booking.share_expires_at) <= datetime.now(timezone.utc)):
         raise missing
     listing = db.get(Listing, booking.listing_id)
     driver = db.get(User, booking.provider_id)
     attrs = (listing.attributes if listing else {}) or {}
     body = {
+        "category": booking.category,
+        "service": listing.title if listing and booking.category != "travel" else None,
         "status": booking.status,
-        "from": attrs.get("originLabel"),
-        "to": attrs.get("destinationLabel"),
+        "from": attrs.get("originLabel") if booking.category == "travel" else None,
+        "to": attrs.get("destinationLabel") if booking.category == "travel" else None,
         "departureAt": attrs.get("departureAt"),
         "vehicle": attrs.get("vehicleType"),
         "seats": (booking.details or {}).get("seats"),

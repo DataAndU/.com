@@ -333,7 +333,10 @@ def test_trip_share_link_is_public_minimal_and_revocable(trip, maker):
 def test_trip_share_rules(trip, maker):
     from models import Booking
     assert trip["prov"].post("/api/bookings/b-trip/share", headers=SAME).status_code == 404  # traveller only
-    assert trip["buyer"].post("/api/bookings/b-svc/share", headers=SAME).status_code == 422  # travel only
+    svc = trip["buyer"].post("/api/bookings/b-svc/share", headers=SAME)          # service jobs too
+    assert svc.status_code == 200
+    job = TestClient(app, base_url=ORIGIN).get(f"/api/trips/shared/{svc.json()['path'].rsplit('/', 1)[1]}").json()
+    assert job["category"] == "services" and job["from"] is None and job["to"] is None
     assert trip["buyer"].post("/api/bookings/b-trip/share").status_code == 403              # CSRF
     first = trip["buyer"].post("/api/bookings/b-trip/share", headers=SAME).json()["path"].rsplit("/", 1)[1]
     second = trip["buyer"].post("/api/bookings/b-trip/share", headers=SAME).json()["path"].rsplit("/", 1)[1]
@@ -456,3 +459,26 @@ def test_search_available_now_filter(people, maker):
     assert "free" in ids and "busy" not in ids
     assert all(x["providerId"] == "prov" for x in items)
     assert {x["id"] for x in people["buyer"].get("/api/listings").json()["items"]} >= {"free", "busy"}
+
+
+def test_review_photos_must_be_own_ready_review_photos(people, maker):
+    from models import Booking, Media
+    done = datetime.now(timezone.utc)
+    with maker() as db:
+        db.add(Booking(id="b-done", listing_id="l-prov", buyer_id="buyer", provider_id="prov",
+                       category="services", status="completed", details={},
+                       buyer_completed_at=done, provider_completed_at=done))
+        db.add(Media(id="m-mine", owner_id="buyer", purpose="reviewPhoto", object_path="p/1.jpg",
+                     content_type="image/jpeg", size_bytes=10, status="ready"))
+        db.add(Media(id="m-other", owner_id="prov2", purpose="reviewPhoto", object_path="p/2.jpg",
+                     content_type="image/jpeg", size_bytes=10, status="ready"))
+        db.commit()
+    buyer = people["buyer"]
+    bad = buyer.post("/api/bookings/b-done/reviews", headers=SAME,
+                     json={"rating": 5, "comment": "Great", "photoIds": ["m-other"]})
+    assert bad.status_code == 422
+    ok = buyer.post("/api/bookings/b-done/reviews", headers=SAME,
+                    json={"rating": 5, "comment": "Great work", "photoIds": ["m-mine"]})
+    assert ok.status_code == 201 and ok.json()["photoIds"] == ["m-mine"]
+    profile = buyer.get("/api/providers/prov").json()
+    assert profile["reviews"][0]["photoUrls"] == ["/api/media/m-mine"]
