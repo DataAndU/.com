@@ -7,6 +7,7 @@ import { Search, MapPin } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import React from "react";
+import { VoiceSearchButton } from "@/components/voice-search-button";
 
 type DiscoverBoardProps = {
   fixedCategory?: string;
@@ -28,6 +29,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
   const [distanceKm, setDistanceKm] = useState("50");
   
   const [travelOrigin, setTravelOrigin] = useState("");
+  const [nowOnly, setNowOnly] = useState(false);
   const [deliveryFrom, setDeliveryFrom] = useState("");
   const [deliveryTo, setDeliveryTo] = useState("");
   const [travelDest, setTravelDest] = useState("");
@@ -39,6 +41,17 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
   
   const { data: listingsData, isLoading, isError, error } = useListings(filters);
   const [geocodeError, setGeocodeError] = useState("");
+
+  // Links such as /discover?now=1 open with "Available now" switched on.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (params.get("now") === "1" || q) {
+      if (params.get("now") === "1") setNowOnly(true);
+      if (q) setSearch(q);
+      setFilters((prev) => ({ ...prev, ...(params.get("now") === "1" ? { availableNow: "true" } : {}), ...(q ? { search: q } : {}) }));
+    }
+  }, []);
 
   // Sync category if fixedCategory changes (e.g. navigation)
   useEffect(() => {
@@ -55,6 +68,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
     if (search) newFilters.search = search;
     const activeCategory = fixedCategory || category;
     if (activeCategory) newFilters.category = activeCategory;
+    if (nowOnly) newFilters.availableNow = "true";
     if (priceMin) newFilters.priceMin = priceMin;
     if (priceMax) newFilters.priceMax = priceMax;
     
@@ -170,12 +184,18 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                 className="w-full h-10 pl-10 pr-4 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+            <VoiceSearchButton onText={(text) => { setSearch(text); setFilters((prev) => ({ ...prev, search: text })); }} />
             <button type="submit" className="flex items-center justify-center px-6 h-10 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
               Search
             </button>
           </div>
           
           <div className="flex flex-wrap items-center gap-3 p-3 bg-background/50 rounded-lg border border-border">
+            <button type="button" aria-pressed={nowOnly}
+              onClick={() => { const next = !nowOnly; setNowOnly(next); setFilters((prev) => { const f = { ...prev }; if (next) f.availableNow = "true"; else delete f.availableNow; return f; }); }}
+              className={`h-8 rounded-full px-3 text-xs font-semibold border ${nowOnly ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground"}`}>
+              ● Available now
+            </button>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium uppercase">Price:</span>
               <input type="number" placeholder="Min ₹" value={priceMin} onChange={e=>setPriceMin(e.target.value)} className="w-20 h-8 bg-input border border-border rounded px-2 text-xs" />
@@ -253,6 +273,9 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                     <div className="absolute top-2 left-2 bg-black/60 backdrop-blur text-white text-[10px] uppercase font-bold px-2 py-1 rounded">
                       {listing.category}
                     </div>
+                    {listing.provider?.availableNow && (
+                      <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded">● Free now</div>
+                    )}
                   </div>
                   <div className="p-4 flex flex-col flex-1">
                     <h3 className="font-semibold text-lg line-clamp-1 mb-1">{listing.title}</h3>
@@ -267,8 +290,9 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                     
                     <div className="mt-auto flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="font-bold text-lg leading-tight">₹{listing.price}</span>
-                        <span className="text-[10px] text-muted-foreground uppercase">{listing.pricingMode}</span>
+                        <span className="text-[10px] text-muted-foreground">Starts from</span>
+                        <span className="font-bold text-lg leading-tight">₹{listing.price.toLocaleString("en-IN")}</span>
+                        {listing.pricingMode === "negotiable" && <span className="text-[10px] text-muted-foreground">Price can be discussed</span>}
                       </div>
                       <button className="px-4 py-1.5 bg-secondary text-secondary-foreground rounded-lg text-xs font-medium hover:bg-secondary/90 transition-colors">
                         View

@@ -152,11 +152,16 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
            pickupLat: Annotated[float | None, Query(ge=-90, le=90)] = None,
            pickupLng: Annotated[float | None, Query(ge=-180, le=180)] = None,
            dropoffLat: Annotated[float | None, Query(ge=-90, le=90)] = None,
-           dropoffLng: Annotated[float | None, Query(ge=-180, le=180)] = None):
+           dropoffLng: Annotated[float | None, Query(ge=-180, le=180)] = None,
+           availableNow: bool = False):
     if category and category not in CATEGORIES:
         raise HTTPException(422, "Unknown category")
     stmt = select(Listing).where(Listing.status == "active", Listing.category.in_(CATEGORIES))
     if category: stmt = stmt.where(Listing.category == category)
+    if availableNow:
+        # "Need it today": only providers who switched on Available now.
+        stmt = stmt.where(Listing.provider_id.in_(select(User.id).where(
+            User.available_until > datetime.now(timezone.utc))))
     if search:
         term = f"%{search[:100]}%"
         stmt = stmt.where(or_(Listing.title.ilike(term), Listing.description.ilike(term)))

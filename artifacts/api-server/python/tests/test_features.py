@@ -439,3 +439,20 @@ def test_delivery_listing_with_route_matches_from_origin_to_destination(people, 
     # Editing can remove the route
     patched = prov.patch(f"/api/listings/{listing_id}", json={"attributes": attrs}, headers=SAME)
     assert patched.status_code == 200
+
+
+def test_search_available_now_filter(people, maker):
+    with maker() as db:
+        for lid, pid in (("free", "prov"), ("busy", "prov2")):
+            db.add(Listing(id=lid, provider_id=pid, category="services", title=lid,
+                           description="Plumbing and repairs", price=300, pricing_mode="fixed",
+                           location_label="x", latitude=12.9, longitude=77.6,
+                           attributes={"serviceType": "Plumber", "experienceYears": 3, "onSiteOrRemote": "onSite"}))
+        db.commit()
+    assert people["prov"].put("/api/me/availability", json={"available": True, "hours": 4},
+                              headers=SAME).status_code == 200
+    items = people["buyer"].get("/api/listings?availableNow=true").json()["items"]
+    ids = {x["id"] for x in items}
+    assert "free" in ids and "busy" not in ids
+    assert all(x["providerId"] == "prov" for x in items)
+    assert {x["id"] for x in people["buyer"].get("/api/listings").json()["items"]} >= {"free", "busy"}

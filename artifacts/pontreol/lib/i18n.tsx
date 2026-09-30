@@ -57,3 +57,7 @@ export function LanguagePicker({ className = "" }: { className?: string }) {
     </select>
   );
 }
+
+export function useLang() {
+  return useContext(LangContext).lang;
+}

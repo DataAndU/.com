@@ -6,7 +6,8 @@ import { useUserLocation } from "@/lib/geolocation";
 import { HomeBanner } from "@/components/home-banner";
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Navigation, Search } from "lucide-react";
+import { Navigation, Search, Siren, Zap } from "lucide-react";
+import Link from "next/link";
 
 const loadMapView = () => import("@/components/map-view");
 const MapView = dynamic(loadMapView, { ssr: false, loading: () => <MapPlaceholder /> });
@@ -94,6 +95,15 @@ export default function HomePage() {
             {searching ? <div className="w-5 h-5 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" /> : <Search className="w-5 h-5" />}
           </button>
         </form>
+
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Link href="/discover?now=1" className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500" data-testid="button-need-today">
+            <Zap className="h-4 w-4" /> Need it today
+          </Link>
+          <Link href="/emergency" className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-red-500" data-testid="button-emergency">
+            <Siren className="h-4 w-4" /> Emergency help
+          </Link>
+        </div>
 
         {summary && (
           <div className="mt-2 text-xs space-y-2">
