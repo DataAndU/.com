@@ -160,6 +160,35 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
 
   const activeCategory = fixedCategory || category;
 
+  const [alertState, setAlertState] = useState<"idle" | "saving" | "saved">("idle");
+  const [alertMessage, setAlertMessage] = useState("");
+
+  const notifyMe = async () => {
+    setAlertMessage("");
+    let point: { latitude: number; longitude: number } | null = null;
+    const la = filters.lat ?? filters.pickupLat, ln = filters.lng ?? filters.pickupLng;
+    if (la && ln) point = { latitude: Number(la), longitude: Number(ln) };
+    if (!point) {
+      point = await new Promise((resolve) => {
+        if (!navigator.geolocation) return resolve(null);
+        navigator.geolocation.getCurrentPosition(
+          ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
+          () => resolve(null), { timeout: 10000 });
+      });
+    }
+    if (!point) { setAlertMessage("Allow location, or type your area in the Location box and search first."); return; }
+    setAlertState("saving");
+    try {
+      await fetchApi("/free-alerts", { method: "POST", body: JSON.stringify({
+        category: activeCategory || null, keyword: (filters.search || "").slice(0, 60) || null, ...point }) });
+      setAlertState("saved");
+      setAlertMessage("When a matching helper within 10 km switches on Available now, you'll get a notification. The alert lasts 7 days.");
+    } catch (e) {
+      setAlertState("idle");
+      setAlertMessage(e instanceof Error ? e.message : "Could not save the alert.");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="shrink-0 border-b border-border bg-card px-6 py-4">
@@ -342,9 +371,27 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
               ))}
               
               {(!listingsData?.items || listingsData.items.length === 0) && (
-                <div className="col-span-full py-20 text-center border border-dashed border-border rounded-xl bg-card/50">
-                  <Search className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                  <p className="text-muted-foreground">No listings found matching your search.</p>
+                <div className="col-span-full py-12 px-4 text-center border border-dashed border-border rounded-xl bg-card/50">
+                  <div className="text-5xl mb-3" aria-hidden="true">🔍</div>
+                  <p className="font-semibold text-lg">
+                    {nowOnly ? "Nobody is free right now for this search." : "No matches nearby yet."}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">Pontreol is new in many areas. Here is what you can do:</p>
+                  <div className="mt-5 flex flex-wrap justify-center gap-2">
+                    <button type="button" onClick={() => void notifyMe()} disabled={alertState === "saving" || alertState === "saved"}
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60" data-testid="button-notify-me">
+                      {alertState === "saved" ? "✓ We'll notify you" : alertState === "saving" ? "Saving…" : "🔔 Notify me when someone is free"}
+                    </button>
+                    {nowOnly && (
+                      <button type="button" onClick={() => { setNowOnly(false); setFilters((prev) => { const f = { ...prev }; delete f.availableNow; return f; }); }}
+                        className="rounded-lg border border-border px-4 py-2 text-sm">Show everyone, not just free now</button>
+                    )}
+                    {Object.keys(filters).some((k) => k !== "category") && (
+                      <button type="button" onClick={() => { setSearch(""); setNowOnly(false); setDealsOnly(false); setFilters(activeCategory ? { category: activeCategory } : {}); }}
+                        className="rounded-lg border border-border px-4 py-2 text-sm">Clear filters</button>
+                    )}
+                  </div>
+                  {alertMessage && <p className="mt-3 text-xs text-muted-foreground" role="status">{alertMessage}</p>}
                 </div>
               )}
             </div>

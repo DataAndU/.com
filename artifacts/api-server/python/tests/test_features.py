@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, update
+from sqlalchemy import create_engine, func, update
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -553,3 +553,21 @@ def test_society_page_recommendations_need_a_completed_job(people, maker):
     assert [p["id"] for p in buyer.get("/api/me/used-providers").json()["items"]] == ["prov"]
     assert buyer.delete("/api/societies/prestige-lakeside-whitefield/recommend/prov", headers=SAME).status_code == 204
     assert buyer.get("/api/societies/prestige-lakeside-whitefield").json()["helpers"] == []
+
+
+def test_free_alert_fires_once_when_matching_provider_switches_on(people, maker):
+    from models import FreeAlert, Notification
+    from sqlalchemy import select
+    buyer, prov = people["buyer"], people["prov"]
+    listing = buyer.get("/api/listings/l-prov").json()
+    near = {"latitude": listing["latitude"] + 0.01, "longitude": listing["longitude"]}
+    assert buyer.post("/api/free-alerts", json={"category": "services", **near}, headers=SAME).status_code == 201
+    far = {"latitude": listing["latitude"] + 1, "longitude": listing["longitude"]}
+    assert buyer.post("/api/free-alerts", json={"category": "services", **far}, headers=SAME).status_code == 201
+    assert buyer.post("/api/free-alerts", json={"category": "bogus", **near}, headers=SAME).status_code == 422
+    assert prov.post("/api/free-alerts", json=near, headers=SAME).status_code == 403
+    assert prov.put("/api/me/availability", json={"available": True, "hours": 2}, headers=SAME).status_code == 200
+    with maker() as db:
+        notes = db.scalars(select(Notification).where(Notification.type == "free_alert")).all()
+        assert [n.user_id for n in notes] == ["buyer"] and notes[0].resource_id == "l-prov"
+        assert db.scalar(select(func.count(FreeAlert.id))) == 1          # far alert still waiting

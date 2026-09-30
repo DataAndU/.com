@@ -79,9 +79,14 @@ class AvailabilityBody(BaseModel):
 def set_availability(body: AvailabilityBody, db: Session = Depends(get_db),
                      user=Depends(require_role("provider"))):
     """Provider "Available now" switch. Turns itself off after `hours`."""
+    was_available = user.available_until is not None and user.available_until.replace(
+        tzinfo=user.available_until.tzinfo or timezone.utc) > datetime.now(timezone.utc)
     user.available_until = (datetime.now(timezone.utc) + timedelta(hours=body.hours)
                             if body.available else None)
     db.flush()
+    if body.available and not was_available:
+        from free_alerts import notify_free
+        notify_free(db, user)
     return user_json(user)
 
 

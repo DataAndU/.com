@@ -287,6 +287,19 @@ class SocietyRecommendation(Base):
                                        name="uq_society_recommendation"),)
 
 
+class FreeAlert(Base):
+    """ "Notify me when someone is free" (migration 0013). Fires once."""
+    __tablename__ = "free_alerts"
+    id = Column(String(36), primary_key=True, default=uid)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    category = Column(String(20))
+    keyword = Column(String(60))
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+
+
 class GeocodeCache(Base):
     __tablename__ = "geocode_cache"
     query = Column(String(200), primary_key=True)
