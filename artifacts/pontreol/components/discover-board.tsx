@@ -293,6 +293,26 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                     )}
                   </div>
                   <div className="p-4 flex flex-col flex-1">
+                    {listing.provider && (
+                      <div className="flex items-center gap-2 mb-2 min-w-0">
+                        <div className="h-8 w-8 shrink-0 rounded-full overflow-hidden bg-secondary flex items-center justify-center text-xs font-bold">
+                          {listing.provider.avatarUrl
+                            ? <img src={listing.provider.avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                            : (listing.provider.displayName || "?").slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 text-xs">
+                          <p className="font-semibold truncate">
+                            {listing.provider.displayName}
+                            {listing.provider.verificationStatus === "verified" && <span className="ml-1 text-sky-400" title="ID verified">✓</span>}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {listing.provider.reviewCount > 0
+                              ? <>⭐ {listing.provider.rating.toFixed(1)} · {listing.provider.reviewCount} {listing.provider.reviewCount === 1 ? "review" : "reviews"}</>
+                              : "New on Pontreol"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <h3 className="font-semibold text-lg line-clamp-1 mb-1">{listing.title}</h3>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
                       <MapPin className="w-3 h-3" />

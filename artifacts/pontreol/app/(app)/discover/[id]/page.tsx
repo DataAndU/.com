@@ -10,6 +10,7 @@ import { useState } from "react";
 import { MapPin, MessageSquare, Star, ArrowLeft } from "lucide-react";
 import { ShareListing } from "@/components/share-listing";
 import { ProviderBadges } from "@/components/provider-badges";
+import { ContactButtons } from "@/components/contact-buttons";
 import { AddressSearch, type GeocodedLocation } from "@/components/address-search";
 
 export default function ListingDetailPage() {
@@ -188,6 +189,11 @@ export default function ListingDetailPage() {
                   </div>
                 </div>
               </div>
+              {user?.role === "buyer" && user.id !== listing.providerId && (
+                <div className="mt-4">
+                  <ContactButtons listingId={listing.id} title={listing.title} />
+                </div>
+              )}
               {user?.role === "buyer" && user.id !== listing.providerId && (
                 <div className="mt-4 pt-4 border-t border-border">
                   <h4 className="text-sm font-medium mb-2">Send Message</h4>
