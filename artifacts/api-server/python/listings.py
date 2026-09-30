@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from common import listing_json, listings_json, owned
 from deps import current_user, get_db, require_role
-from models import GeocodeCache, Listing, ListingMedia, Media, User
+from models import Availability, GeocodeCache, Listing, ListingMedia, Media, User
 
 router = APIRouter()
 # Equipment was retired: old rows stay in the database but are no longer listed or creatable.
@@ -327,13 +327,66 @@ def bounding_box(lat, lng, radius_km):
     return and_(*conditions)
 
 
-def map_pin_json(listing, distance, available_now=False):
-    """Compact projection for map pins (no photo lookups, no description)."""
+def map_pin_json(listing, distance, available_now=False, available_until=None, slot=None):
+    """Compact projection for map pins (no photo lookups, no description).
+    Availability fields come only from real data: the provider's "Available now"
+    switch, the listing's next scheduled slot, or a travel departure time."""
+    departure = (listing.attributes or {}).get("departureAt") if listing.category == "travel" else None
     return dict(id=listing.id, providerId=listing.provider_id, category=listing.category,
                 title=listing.title, price=listing.price, pricingMode=listing.pricing_mode,
                 currency=listing.currency, latitude=listing.latitude,
                 longitude=listing.longitude, status=listing.status, distanceKm=distance,
-                availableNow=available_now)
+                availableNow=available_now,
+                availableUntil=_iso(available_until) if available_now else None,
+                nextSlotStart=_iso(slot[0]) if slot else None,
+                nextSlotEnd=_iso(slot[1]) if slot else None,
+                departureAt=str(departure) if departure else None,
+                dealPercent=listing.deal_percent if listing.deal_until and _aware(listing.deal_until) > datetime.now(timezone.utc) else None)
+
+
+def _aware(value):
+    return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
+
+
+def _iso(value):
+    return _aware(value).isoformat() if value is not None else None
+
+
+def provider_available_until(db, provider_ids):
+    """provider id -> "Available now" end time, for providers switched on (one query)."""
+    if not provider_ids:
+        return {}
+    return dict(db.execute(select(User.id, User.available_until).where(
+        User.id.in_(provider_ids), User.available_until > datetime.now(timezone.utc))).all())
+
+
+def upcoming_slots(db, listing_ids, horizon_days=7):
+    """listing id -> ordered [(start, end)] of scheduled slots in the next week (one query)."""
+    if not listing_ids:
+        return {}
+    now = datetime.now(timezone.utc)
+    slots = {}
+    for listing_id, start, end in db.execute(select(
+            Availability.listing_id, Availability.starts_at, Availability.ends_at).where(
+            Availability.listing_id.in_(listing_ids), Availability.ends_at > now,
+            Availability.starts_at < now + timedelta(days=horizon_days)).order_by(Availability.starts_at)):
+        slots.setdefault(listing_id, []).append((_aware(start), _aware(end)))
+    return slots
+
+
+def available_in_window(listing, window_from, window_to, until, slots):
+    """True when real availability overlaps [window_from, window_to]."""
+    if until is not None and _aware(until) > window_from:
+        return True
+    if any(start < window_to and end > window_from for start, end in slots):
+        return True
+    if listing.category == "travel":
+        try:
+            departure = datetime.fromisoformat(str(listing.attributes.get("departureAt")).replace("Z", "+00:00"))
+            return window_from <= _aware(departure) <= window_to
+        except (TypeError, ValueError):
+            return False
+    return False
 
 
 def available_provider_ids(db, provider_ids):
@@ -349,12 +402,27 @@ def home(db: Session = Depends(get_db), user=Depends(current_user),
          lat: Annotated[float | None, Query(ge=-90, le=90)] = None,
          lng: Annotated[float | None, Query(ge=-180, le=180)] = None,
          distanceKm: Annotated[float, Query(gt=0, le=500)] = 25,
-         view: Literal["full", "map"] = "full"):
+         view: Literal["full", "map"] = "full",
+         search: Annotated[str | None, Query(max_length=100)] = None,
+         category: str | None = None,
+         windowFrom: datetime | None = None, windowTo: datetime | None = None):
+    """Explore: nearby listings for the map. Optional filters (all additive):
+    text search, one category, and an availability window [windowFrom, windowTo]."""
+    if category and category not in CATEGORIES:
+        raise HTTPException(422, "Unknown category")
+    if (windowFrom is None) != (windowTo is None) or (windowFrom and (
+            not windowFrom.tzinfo or not windowTo.tzinfo or windowTo < windowFrom)):
+        raise HTTPException(422, "Give both windowFrom and windowTo with timezones")
     counts = {category: count for category, count in db.execute(
         select(Listing.category, func.count()).where(
             Listing.status == "active").group_by(Listing.category))}
     categories = [{"category": x, "count": counts.get(x, 0)} for x in sorted(CATEGORIES)]
     stmt = select(Listing).where(Listing.status == "active", Listing.category.in_(CATEGORIES))
+    if category:
+        stmt = stmt.where(Listing.category == category)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        stmt = stmt.where(or_(Listing.title.ilike(term), Listing.description.ilike(term)))
     nearby = []
     if lat is not None and lng is not None:
         # Nearest-first by a cheap planar approximation so LIMIT keeps the
@@ -374,9 +442,15 @@ def home(db: Session = Depends(get_db), user=Depends(current_user),
         # Without coordinates keep the historical oldest-first sample of 100.
         rows = db.scalars(stmt.order_by(Listing.created_at, Listing.id).limit(100))
         nearby = [(row, None) for row in rows]
+    if view == "map" or windowFrom is not None:
+        until = provider_available_until(db, {row.provider_id for row, _ in nearby})
+        slots = upcoming_slots(db, [row.id for row, _ in nearby])
+        if windowFrom is not None:
+            nearby = [(row, d) for row, d in nearby if available_in_window(
+                row, windowFrom, windowTo, until.get(row.provider_id), slots.get(row.id, []))]
     if view == "map":
-        available = available_provider_ids(db, {row.provider_id for row, _ in nearby})
-        listings = [map_pin_json(row, distance, row.provider_id in available)
+        listings = [map_pin_json(row, distance, row.provider_id in until, until.get(row.provider_id),
+                                 (slots.get(row.id) or [None])[0])
                     for row, distance in nearby]
     else:
         listings = listings_json(db, nearby)

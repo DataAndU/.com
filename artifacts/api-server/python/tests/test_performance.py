@@ -132,11 +132,13 @@ def test_home_summary_map_view_is_compact_and_skips_joins(db, engine, city):
     with queries(engine) as sql:
         result = home(db=db, user=SimpleNamespace(id="buyer"), lat=lat, lng=lng,
                       distanceKm=10, view="map")
-    # counts + candidates + one "available now" lookup; still no photo/provider rows
-    assert len(sql) == 3
+    # counts + candidates + one "available now" lookup + one slots lookup;
+    # constant regardless of pin count, still no photo/provider rows
+    assert len(sql) == 4
     pin = result["nearbyListings"][0]
     assert set(pin) == {"id", "providerId", "category", "title", "price", "pricingMode",
-                        "currency", "latitude", "longitude", "status", "distanceKm", "availableNow"}
+                        "currency", "latitude", "longitude", "status", "distanceKm", "availableNow",
+                        "availableUntil", "nextSlotStart", "nextSlotEnd", "departureAt", "dealPercent"}
     assert "description" not in pin
 
 
@@ -299,3 +301,23 @@ def test_timing_log_has_route_template_and_no_sensitive_values(client, caplog):
                "db_queries=" in x and "db_queries=0" not in x for x in lines)
     joined = "\n".join(lines)
     assert secret not in joined and "12.97" not in joined and "l0" not in joined
+
+
+def test_explore_filters_search_category_and_availability_window(db, city):
+    from models import Availability
+    lat, lng = city
+    now = datetime.now(timezone.utc)
+    db.add(Availability(listing_id="near-5km", starts_at=now + timedelta(hours=2),
+                        ends_at=now + timedelta(hours=5), timezone="Asia/Kolkata"))
+    db.commit()
+    base = dict(db=db, user=SimpleNamespace(id="buyer"), lat=lat, lng=lng, distanceKm=10, view="map")
+    today = home(**base, windowFrom=now, windowTo=now + timedelta(hours=12))
+    assert [x["id"] for x in today["nearbyListings"]] == ["near-5km"]
+    pin = today["nearbyListings"][0]
+    assert pin["nextSlotStart"] and pin["nextSlotEnd"] and pin["availableNow"] is False
+    now_only = home(**base, windowFrom=now, windowTo=now + timedelta(minutes=1))
+    assert now_only["nearbyListings"] == []
+    assert [x["id"] for x in home(**base, search="near-1")["nearbyListings"]] == ["near-1km"]
+    assert home(**base, category="spaces")["nearbyListings"] == []
+    with pytest.raises(Exception):
+        home(**base, category="equipment")
