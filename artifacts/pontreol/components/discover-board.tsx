@@ -47,6 +47,11 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get("q");
+    const cat = params.get("category");
+    if (cat && !fixedCategory && ["services", "spaces", "delivery", "travel"].includes(cat)) {
+      setCategory(cat);
+      setFilters((prev) => ({ ...prev, category: cat }));
+    }
     if (params.get("now") === "1" || q) {
       if (params.get("now") === "1") setNowOnly(true);
       if (q) setSearch(q);

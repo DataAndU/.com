@@ -105,6 +105,19 @@ export default function HomePage() {
           </Link>
         </div>
 
+        <div className="mt-2 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1" aria-label="Popular needs">
+          {[
+            ["🔧", "Plumber", "q=plumber"], ["⚡", "Electrician", "q=electrician"], ["🚚", "Tempo", "q=tempo"],
+            ["🍳", "Cook", "q=cook"], ["🧹", "Cleaning", "q=clean"], ["🚗", "Driver", "q=driver"],
+            ["🪚", "Carpenter", "q=carpenter"], ["🏛️", "Hall", "category=spaces"], ["💇", "Beauty", "q=beauty"],
+          ].map(([emoji, label, query]) => (
+            <Link key={label} href={`/discover?${query}`}
+              className="flex w-[4.5rem] shrink-0 flex-col items-center gap-1 rounded-xl border border-border bg-card py-2 text-[11px] font-medium hover:border-primary">
+              <span className="text-2xl leading-none" aria-hidden="true">{emoji}</span>{label}
+            </Link>
+          ))}
+        </div>
+
         {summary && (
           <div className="mt-2 text-xs space-y-2">
             <div>

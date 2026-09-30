@@ -17,7 +17,8 @@ import {
   Bell,
   Grid,
   QrCode,
-  Building
+  Building,
+  MoreHorizontal
 } from "lucide-react";
 import { useState } from "react";
 import { AccountMenu } from "@/components/account-menu";
@@ -108,6 +109,32 @@ export function AppSidebar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile bottom tab bar: the main screens as big thumb-sized icons. */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)]" aria-label="Main">
+        <div className="grid grid-cols-5">
+          {[
+            { key: "nav.map" as const, path: "/home", icon: MapPin },
+            { key: "nav.discover" as const, path: "/discover", icon: Search },
+            { key: "nav.requests" as const, path: "/requests", icon: Inbox },
+            { key: "nav.messages" as const, path: "/messages", icon: MessageSquare },
+          ].map((tab) => {
+            const active = pathname === tab.path || pathname.startsWith(`${tab.path}/`);
+            return (
+              <Link key={tab.path} href={tab.path} onClick={() => setMobileMenuOpen(false)}
+                className={cn("flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium", active ? "text-primary" : "text-muted-foreground")}>
+                <tab.icon className="w-6 h-6" />
+                <span className="truncate max-w-full px-1">{t(tab.key)}</span>
+              </Link>
+            );
+          })}
+          <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-expanded={mobileMenuOpen}
+            className={cn("flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium", mobileMenuOpen ? "text-primary" : "text-muted-foreground")}>
+            <MoreHorizontal className="w-6 h-6" />
+            <span>More</span>
+          </button>
+        </div>
+      </nav>
 
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
