@@ -13,7 +13,7 @@ export default function SafetyPage() {
 
         <section className="space-y-2">
           <h2 className="font-semibold">What Pontreol is</h2>
-          <p>Pontreol is a marketplace that connects people. Listings for services, spaces, delivery and travel are created by independent users and providers, not by Pontreol. Unless a listing clearly says otherwise, Pontreol does not itself provide the service, space, delivery or trip.</p>
+          <p>Pontreol is a marketplace that connects people. Listings for services, spaces and travel are created by independent users and providers, not by Pontreol. Unless a listing clearly says otherwise, Pontreol does not itself provide the service, space or trip.</p>
         </section>
 
         <section className="space-y-2">

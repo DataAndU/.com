@@ -55,7 +55,7 @@ export function Tutorial({ onDone }: { onDone: (next: "explore" | "post" | "skip
             </div>
             <MiniMap />
             <h2 className="text-xl font-semibold">Find what you need</h2>
-            <p className="text-sm text-muted-foreground">Services, Spaces, Delivery and Travel available around you.</p>
+            <p className="text-sm text-muted-foreground">Services, Spaces and Travel available around you.</p>
           </div>
         )}
 

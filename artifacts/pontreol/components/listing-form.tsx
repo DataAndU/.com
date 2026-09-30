@@ -348,7 +348,6 @@ export function ListingForm({ initial, defaultCategory, mutationPending, onSubmi
           >
             <option value="services">Services</option>
             <option value="spaces">Spaces</option>
-            <option value="delivery">Delivery</option>
             <option value="travel">Travel</option>
           </select>
         </label>

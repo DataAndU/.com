@@ -23,7 +23,7 @@ const ExploreMap = dynamic(loadMap, { ssr: false, loading: () => <div className=
 
 // Neutral India overview when no location is known (display only, never sent as the user's position).
 const OVERVIEW: [number, number] = [22.35, 78.67];
-const CATEGORIES = ["services", "spaces", "delivery", "travel"] as const;
+const CATEGORIES = ["services", "spaces", "travel"] as const;
 type When = "any" | "now" | "today";
 
 function windowFor(when: When): { windowFrom: string; windowTo: string } | null {

@@ -55,7 +55,7 @@ export default function MyListingsPage() {
     <div className="mx-auto max-w-md p-8 text-center">
       <h1 className="text-xl font-semibold">Post availability</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        You&apos;re in Find mode. Switch to Provide mode to post a service, space, delivery or trip.
+        You&apos;re in Find mode. Switch to Provide mode to post a service, space or trip.
         Same account; you can switch back any time.
       </p>
       <button type="button" disabled={updateRole.isPending}
@@ -123,7 +123,7 @@ export default function MyListingsPage() {
                 <div>
                   <p className="mb-3 text-sm text-muted-foreground">What are you offering?</p>
                   <div className="grid grid-cols-2 gap-3">
-                    {([["services", "🛠️", "Services", "Skills and help"], ["spaces", "🏛️", "Spaces", "Rooms, halls, parking"], ["delivery", "🚚", "Delivery", "Moving and parcels"], ["travel", "🚗", "Travel", "Seats on a trip"]] as const).map(([id, emoji, name, hint]) => (
+                    {([["services", "🛠️", "Services", "Skills and help"], ["spaces", "🏛️", "Spaces", "Rooms, halls, parking"], ["travel", "🚗", "Travel", "Seats on a trip"]] as const).map(([id, emoji, name, hint]) => (
                       <button key={id} type="button" onClick={() => setNewCategory(id)}
                         className="rounded-xl border border-border p-4 text-left hover:border-primary">
                         <span className="text-2xl" aria-hidden="true">{emoji}</span>

@@ -14,8 +14,9 @@ from deps import current_user, get_db, require_role
 from models import Availability, GeocodeCache, Listing, ListingMedia, Media, Notification, User
 
 router = APIRouter()
-# Equipment was retired: old rows stay in the database but are no longer listed or creatable.
-CATEGORIES = {"services", "spaces", "delivery", "travel"}
+# Equipment and Delivery were retired: old rows stay in the database but are
+# no longer listed or creatable (existing bookings keep working).
+CATEGORIES = {"services", "spaces", "travel"}
 REQUIRED = {
     "equipment": {"equipmentType", "condition", "fuelType"},
     "services": {"serviceType", "experienceYears", "onSiteOrRemote"},
@@ -43,7 +44,7 @@ def route_valid(a):
 
 
 class ListingBody(BaseModel):
-    category: Literal["services", "spaces", "delivery", "travel"]
+    category: Literal["services", "spaces", "travel"]
     title: str = Field(min_length=3, max_length=120)
     description: str = Field(min_length=10, max_length=4000)
     price: float = Field(ge=0)

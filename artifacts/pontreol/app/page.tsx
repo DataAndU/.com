@@ -24,7 +24,6 @@ export default function LandingPage() {
   };
   const categories = [
     { label: t("cat.services") },
-    { label: t("cat.delivery") },
     { label: t("cat.travel") },
     { label: t("cat.spaces") },
   ];
