@@ -2,7 +2,7 @@
 
 import { fetchApi } from "@/lib/api/client";
 import { LocateFixed, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type GeocodedLocation = {
   label: string;
@@ -17,11 +17,35 @@ type Props = {
   allowGps?: boolean;
 };
 
+// Saved places live only in this browser (a per-device convenience).
+const SAVED_KEY = "pontreol-saved-places";
+type Saved = Partial<Record<"Home" | "Work", GeocodedLocation>>;
+
+function readSaved(): Saved {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY) || "{}") as Saved; } catch { return {}; }
+}
+
 export function AddressSearch({ label, value, onChange, allowGps = true }: Props) {
   const [query, setQuery] = useState(value?.label ?? "");
   const [results, setResults] = useState<GeocodedLocation[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [saved, setSaved] = useState<Saved>({});
+  useEffect(() => { setSaved(readSaved()); }, []);
+
+  const pick = (location: GeocodedLocation) => {
+    setQuery(location.label);
+    setResults([]);
+    setError("");
+    onChange(location);
+  };
+
+  const save = (name: "Home" | "Work") => {
+    if (!value) return;
+    const next = { ...readSaved(), [name]: value };
+    try { localStorage.setItem(SAVED_KEY, JSON.stringify(next)); } catch {}
+    setSaved(next);
+  };
 
   const search = async () => {
     const trimmed = query.trim();
@@ -74,6 +98,16 @@ export function AddressSearch({ label, value, onChange, allowGps = true }: Props
   return (
     <fieldset className="space-y-2">
       <legend className="block text-sm font-medium mb-1">{label}</legend>
+      {(saved.Home || saved.Work) && (
+        <div className="flex flex-wrap gap-1.5">
+          {(["Home", "Work"] as const).map((name) => saved[name] && (
+            <button key={name} type="button" onClick={() => pick(saved[name]!)}
+              className="rounded-full border border-primary/50 px-3 py-1 text-xs font-medium hover:bg-primary/10" title={saved[name]!.label}>
+              {name === "Home" ? "🏠" : "💼"} {name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           required
@@ -128,9 +162,15 @@ export function AddressSearch({ label, value, onChange, allowGps = true }: Props
         </div>
       )}
       {value && (
-        <p className="text-xs text-emerald-400">
-          Location confirmed: {value.latitude.toFixed(5)}, {value.longitude.toFixed(5)}
-        </p>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-emerald-500">✓ Location confirmed</span>
+          {(["Home", "Work"] as const).map((name) => (
+            <button key={name} type="button" onClick={() => save(name)}
+              className="rounded-full border border-border px-2 py-0.5 text-muted-foreground hover:border-primary">
+              {saved[name]?.label === value.label ? `Saved as ${name}` : `Save as ${name}`}
+            </button>
+          ))}
+        </div>
       )}
       {error && <p className="text-sm text-red-400">{error}</p>}
     </fieldset>
