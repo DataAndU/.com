@@ -40,7 +40,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
   
   const [filters, setFilters] = useState<Record<string, string>>(fixedCategory ? { category: fixedCategory } : {});
   
-  const { data: listingsData, isLoading, isError, error } = useListings(filters);
+  const { data: listingsData, isLoading, isError, error, isFetching } = useListings(filters);
   const [geocodeError, setGeocodeError] = useState("");
 
   // Links such as /discover?now=1 open with "Available now" switched on.
@@ -292,6 +292,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
         )}
       </div>
       
+      {isFetching && !isLoading && <div className="h-0.5 w-full shrink-0 overflow-hidden bg-primary/20"><div className="h-full w-1/3 animate-pulse bg-primary" /></div>}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto">
           {isLoading ? (
