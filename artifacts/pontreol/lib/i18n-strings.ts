@@ -38,7 +38,6 @@ const en = {
   "nav.requests": "Bookings",
   "nav.messages": "Chats",
   "nav.notifications": "Alerts",
-  "nav.poster": "Poster",
   "nav.settings": "Settings",
   "nav.billing": "Plans",
   "nav.admin": "Admin",
@@ -55,7 +54,6 @@ const en = {
   "emailAddress": "Email address",
   "verificationCode": "Verification code",
   "language": "Language",
-  "nav.society": "My Society",
 };
 
 export type Key = keyof typeof en;

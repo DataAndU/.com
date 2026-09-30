@@ -18,7 +18,6 @@ Poster page's QR), so every sign-up counts toward your referral credits.
 |---|---|
 | Founding provider badge (first 100) | Automatic when choosing the Provider role |
 | Refer a provider → free month | Settings → Refer a provider; Admin → Referrals |
-| Neighbourhood posters with QR | Sidebar → Poster (print / save as PDF) |
 | Festival / launch announcements | Admin → Banner (dated, shows above the home map) |
 | WhatsApp sharing | Share button on every listing; trip and invite sharing |
 | Available now | Provider sidebar switch (green pins, 4 hours) |
@@ -59,7 +58,7 @@ Poster page's QR), so every sign-up counts toward your referral credits.
 ## Neighbourhood launch plan (per area)
 1. **Week 0:** sign up 10–20 providers personally (salons, plumbers, tempo owners, hall
    owners) with your invite link, and help them create listings with photos.
-2. **Week 1:** put posters (Poster page, area name filled in) in shops, apartment notice
+2. **Week 1:** share your invite link in shops, apartment notice
    boards and society WhatsApp groups. Run the launch-week banner.
 3. **Week 2:** ask providers to switch on **Available now** during busy hours, share their
    listings on WhatsApp, and invite other providers.

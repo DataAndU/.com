@@ -14,7 +14,7 @@ const TABS = [
   { label: "Explore", path: "/home", icon: Compass, match: ["/home", "/discover", "/providers", "/bundles"] },
   { label: "Post", path: "/listings?new=1", icon: Plus, match: ["/listings"], primary: true },
   { label: "Inbox", path: "/messages", icon: Inbox, match: ["/messages", "/requests", "/notifications"] },
-  { label: "Profile", path: "/settings", icon: UserRound, match: ["/settings", "/billing", "/society", "/poster", "/admin", "/verification", "/safety"] },
+  { label: "Profile", path: "/settings", icon: UserRound, match: ["/settings", "/billing", "/admin", "/verification", "/safety"] },
 ];
 
 function isActive(pathname: string, match: string[]) {
