@@ -49,10 +49,8 @@ export default function SettingsPage() {
         <nav className="divide-y divide-border rounded-xl border border-border" aria-label="Profile">
           {[
             ["My bookings", "/requests", true],
-            ["My listings & earnings", "/listings", me.data.role === "provider"],
-            ["My society", "/society", true],
+            ["My listings", "/listings", me.data.role === "provider"],
             ["Plans & payments", "/billing", true],
-            ["Shop poster (QR)", "/poster", me.data.role === "provider"],
             ["Admin", "/admin", !!me.data.isAdmin],
             ["Safety & Disclaimer", "/safety", true],
           ].filter(([, , show]) => show).map(([label, href]) => (

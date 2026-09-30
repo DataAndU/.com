@@ -8,7 +8,7 @@ import { ExternalLink, List as ListIcon, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { fetchApi } from "@/lib/api/client";
 import type { Category } from "@/components/listing-form";
 
@@ -26,11 +26,6 @@ export default function MyListingsPage() {
   }, []);
   const [newCategory, setNewCategory] = useState<Category | undefined>(undefined);
   const queryClient = useQueryClient();
-  const { data: earnings } = useQuery({
-    queryKey: ["earnings"],
-    queryFn: () => fetchApi<{ thisMonth: { jobs: number; amount: number }; lastMonth: { jobs: number; amount: number }; allTimeJobs: number }>("/me/earnings"),
-    enabled: user?.role === "provider",
-  });
 
   const startDeal = async (id: string) => {
     const percent = Number(window.prompt("Last-minute deal: how many % off? (5 to 70)", "20"));
@@ -98,7 +93,6 @@ export default function MyListingsPage() {
       <div className="shrink-0 border-b border-border bg-card px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Listings</h1>
-          <p className="text-xs text-muted-foreground">Earn from what you already own — list it on Pontreol.</p>
         </div>
         {!isCreating && (
           <button onClick={() => { setNewCategory(undefined); setIsCreating(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium">
@@ -110,24 +104,6 @@ export default function MyListingsPage() {
         <div className="max-w-6xl mx-auto">
           {(error || actionError) && <div role="alert" className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error?.message || actionError}</div>}
           {isLoading && <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto mt-10" />}
-          {!isCreating && earnings && (
-            <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="earnings-summary">
-              <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4">
-                <p className="text-xs text-muted-foreground">Earned this month</p>
-                <p className="text-2xl font-bold">₹{earnings.thisMonth.amount.toLocaleString("en-IN")}</p>
-                <p className="text-xs text-muted-foreground">{earnings.thisMonth.jobs} completed {earnings.thisMonth.jobs === 1 ? "job" : "jobs"}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">Last month</p>
-                <p className="text-2xl font-bold">₹{earnings.lastMonth.amount.toLocaleString("en-IN")}</p>
-                <p className="text-xs text-muted-foreground">{earnings.lastMonth.jobs} jobs · {earnings.allTimeJobs} jobs in total</p>
-              </div>
-              <button onClick={() => { setNewCategory("travel"); setIsCreating(true); }} className="rounded-xl border border-primary/40 bg-primary/10 p-4 text-left hover:border-primary">
-                <p className="font-semibold">🚗 Going somewhere?</p>
-                <p className="text-xs text-muted-foreground">Offer empty seats or boot space for parcels on your route.</p>
-              </button>
-            </div>
-          )}
           {isCreating ? (
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm max-w-3xl mx-auto">
               <div className="flex items-center justify-between mb-6">

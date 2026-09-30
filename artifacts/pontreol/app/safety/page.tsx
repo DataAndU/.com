@@ -37,7 +37,7 @@ export default function SafetyPage() {
             <li>Keep conversations in Pontreol chat until you are comfortable.</li>
             <li>Meet in public or share your booking status with family (Booking → Share with family).</li>
             <li>Never share OTPs, passwords or bank PINs with anyone.</li>
-            <li>In an emergency call <a href="tel:112" className="text-primary font-semibold">112</a>.</li>
+            <li>In an emergency, call <a href="tel:112" className="text-primary font-semibold">112</a>, India&apos;s free emergency number for police, fire and ambulance.</li>
           </ul>
         </section>
 
