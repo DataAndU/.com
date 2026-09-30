@@ -194,9 +194,9 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
       <div className="shrink-0 border-b border-border bg-card px-6 py-4">
         {headerContent}
         <form onSubmit={handleSearch} className="flex flex-col gap-3">
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             {!fixedCategory && (
-              <div className="w-40 shrink-0">
+              <div className="w-full sm:w-40 shrink-0">
                 <select 
                   value={category} 
                   onChange={e => setCategory(e.target.value)}
@@ -210,7 +210,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                 </select>
               </div>
             )}
-            <div className="flex-1 relative">
+            <div className="flex-1 min-w-0 relative">
               <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input 
                 type="text" 
@@ -221,7 +221,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
               />
             </div>
             <VoiceSearchButton onText={(text) => { setSearch(text); setFilters((prev) => ({ ...prev, search: text })); }} />
-            <button type="submit" className="flex items-center justify-center px-6 h-10 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+            <button type="submit" className="flex items-center justify-center px-4 sm:px-6 h-10 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
               Search
             </button>
           </div>
@@ -347,7 +347,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
                       <MapPin className="w-3 h-3" />
                       <span className="truncate">{listing.locationLabel}</span>
-                      {listing.distanceKm !== undefined && (
+                      {listing.distanceKm != null && (
                         <span className="ml-1 text-primary">({listing.distanceKm.toFixed(1)} km)</span>
                       )}
                     </div>

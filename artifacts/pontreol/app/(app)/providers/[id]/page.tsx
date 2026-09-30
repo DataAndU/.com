@@ -29,7 +29,9 @@ export default function ProviderProfilePage() {
         <div className="max-w-4xl mx-auto space-y-8">
           
           <div className="bg-card border border-border rounded-xl p-8 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6">
-            <img src={provider.avatarUrl || `https://ui-avatars.com/api/?name=${provider.displayName}`} alt="" className="w-24 h-24 rounded-full" />
+            {provider.avatarUrl
+              ? <img src={provider.avatarUrl} alt="" className="w-24 h-24 rounded-full object-cover" referrerPolicy="no-referrer" />
+              : <div className="w-24 h-24 shrink-0 rounded-full bg-secondary flex items-center justify-center text-4xl font-bold">{(provider.displayName || "?").slice(0, 1).toUpperCase()}</div>}
             <div className="flex-1 text-center md:text-left">
               <h2 className="text-2xl font-bold flex items-center justify-center md:justify-start gap-2">
                 {provider.displayName}

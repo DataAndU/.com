@@ -89,7 +89,7 @@ export type Listing = {
   status: "active" | "paused";
   attributes: Record<string, any>;
   photos: Media[];
-  distanceKm?: number;
+  distanceKm?: number | null;
   viewCount: number;
   dealPercent?: number | null;
   dealUntil?: string | null;

@@ -163,8 +163,18 @@ export default function ListingDetailPage() {
               <div className="flex justify-between items-start mb-2">
                 <h2 className="text-2xl font-bold">{listing.title}</h2>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-primary">₹{listing.price}</div>
-                  <div className="text-xs text-muted-foreground uppercase">{listing.pricingMode}</div>
+                  {listing.dealPrice ? (
+                    <>
+                      <div className="text-2xl font-bold text-primary">₹{listing.dealPrice.toLocaleString("en-IN")}</div>
+                      <div className="text-xs flex flex-col items-end gap-0.5"><span className="line-through text-muted-foreground">₹{listing.price.toLocaleString("en-IN")}</span> <span className="whitespace-nowrap rounded bg-amber-500 px-1 font-bold text-black">{listing.dealPercent}% off today</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xs text-muted-foreground">Starts from</div>
+                      <div className="text-2xl font-bold text-primary">₹{listing.price.toLocaleString("en-IN")}</div>
+                    </>
+                  )}
+                  {listing.pricingMode === "negotiable" && <div className="text-xs text-muted-foreground">Price can be discussed</div>}
                 </div>
               </div>
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-6">
@@ -177,12 +187,15 @@ export default function ListingDetailPage() {
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold text-lg mb-4">About Provider</h3>
               <div className="flex items-center gap-4 cursor-pointer hover:bg-foreground/5 p-2 rounded-lg transition-colors" onClick={() => router.push(`/providers/${listing.providerId}`)}>
-                <img src={listing.provider?.avatarUrl || `https://ui-avatars.com/api/?name=${listing.provider?.displayName}`} alt="" className="w-12 h-12 rounded-full" />
+                {listing.provider?.avatarUrl
+                  ? <img src={listing.provider.avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  : <div className="w-12 h-12 shrink-0 rounded-full bg-secondary flex items-center justify-center text-lg font-bold">{(listing.provider?.displayName || "?").slice(0, 1).toUpperCase()}</div>}
                 <div>
                   <div className="font-semibold">{listing.provider?.displayName || "Unknown Provider"}</div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Star className="w-4 h-4 fill-primary text-primary" />
-                    <span>{listing.provider?.rating?.toFixed(1) || "New"} ({listing.provider?.reviewCount || 0} reviews)</span>
+                    <span>{listing.provider?.reviewCount ? `${listing.provider.rating.toFixed(1)} (${listing.provider.reviewCount} ${listing.provider.reviewCount === 1 ? "review" : "reviews"})` : "New on Pontreol"}</span>
+                    {listing.provider?.verificationStatus === "verified" && <span className="text-sky-500 text-xs font-semibold">✓ ID verified</span>}
                     {listing.provider?.availableNow && <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-400">● Available now</span>}
                   </div>
                   <div className="mt-1.5">

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { fetchApi, Listing, Page, Media } from "./client";
 import { readCache, writeCache } from "@/lib/offline-cache";
 
@@ -11,7 +12,15 @@ export type HomeSummary = { totalListings: number; categories: { category: strin
  * Nearby listings for the map. Disabled until real coordinates exist, so no
  * request is ever made for a placeholder location.
  */
+/** Saved result read after mount (never during render: avoids hydration mismatches). */
+function useSaved<T>(key: string) {
+  const [saved, setSaved] = useState<T | undefined>(undefined);
+  useEffect(() => { setSaved(readCache<T>(key)?.data); }, [key]);
+  return saved;
+}
+
 export function useHomeSummary(coords: { lat: number; lng: number } | null, distanceKm: number) {
+  const saved = useSaved<HomeSummary>("home");
   return useQuery<HomeSummary>({
     queryKey: ["home-summary", coords?.lat, coords?.lng, distanceKm],
     queryFn: async () => {
@@ -26,26 +35,24 @@ export function useHomeSummary(coords: { lat: number; lng: number } | null, dist
       return data;
     },
     enabled: coords !== null,
-    // Show the last map instantly (then refresh) on slow connections.
-    initialData: () => (typeof window === "undefined" ? undefined : readCache<HomeSummary>("home")?.data),
-    initialDataUpdatedAt: 0,
     staleTime: 2 * 60 * 1000,
-    placeholderData: (previous) => previous,
+    // Previous result, else the last saved map, while fresh data loads.
+    placeholderData: (previous) => previous ?? saved,
   });
 }
 
 export function useListings(filters: Record<string, string>) {
+  const cacheKey = "listings:" + new URLSearchParams(filters).toString();
+  const saved = useSaved<Page<Listing>>(cacheKey);
   return useQuery<Page<Listing>>({
     queryKey: ["listings", filters],
     queryFn: async () => {
       const params = new URLSearchParams(filters);
       const data = await fetchApi<Page<Listing>>(`/listings?${params.toString()}`);
-      writeCache("listings:" + params.toString(), data);
+      writeCache(cacheKey, data);
       return data;
     },
-    initialData: () => (typeof window === "undefined" ? undefined : readCache<Page<Listing>>("listings:" + new URLSearchParams(filters).toString())?.data),
-    initialDataUpdatedAt: 0,
-    placeholderData: (previous) => previous,
+    placeholderData: (previous) => previous ?? saved,
   });
 }
 
