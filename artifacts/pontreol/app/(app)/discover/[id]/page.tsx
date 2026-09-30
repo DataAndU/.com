@@ -1,5 +1,6 @@
 "use client";
 
+import { TimeChips } from "@/components/time-chips";
 import { ListingPhoto } from "@/components/listing-photo";
 import { useListing } from "@/lib/api/listings";
 import { useCreateServiceBooking, useCreateSpaceBooking, useCreateEquipmentBooking, useCreateDeliveryBooking, useCreateTravelBooking } from "@/lib/api/bookings";
@@ -237,6 +238,7 @@ export default function ListingDetailPage() {
                     <>
                       <div>
                         <label className="block text-xs font-medium mb-1">Requested Date & Time</label>
+                        <TimeChips value={serviceReqAt} onPick={setServiceReqAt} />
                         <input type="datetime-local" value={serviceReqAt} onChange={e=>setServiceReqAt(e.target.value)} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                       <div>
@@ -320,6 +322,7 @@ export default function ListingDetailPage() {
                     <>
                       <div>
                         <label className="block text-xs font-medium mb-1">Pickup Date & Time</label>
+                        <TimeChips value={pickupAt} onPick={setPickupAt} />
                         <input type="datetime-local" value={pickupAt} onChange={e=>setPickupAt(e.target.value)} className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                       <div>

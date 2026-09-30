@@ -1,5 +1,6 @@
 "use client";
 
+import { TimeChips } from "@/components/time-chips";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -112,6 +113,7 @@ export default function MovingBundlePage() {
               <AddressSearch label="Moving from" value={from} onChange={setFrom} />
               <AddressSearch label="Moving to" value={to} onChange={setTo} allowGps={false} />
               <label className="block text-sm">Moving date & time
+                <TimeChips value={when} onPick={setWhen} />
                 <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm" />
               </label>
               <label className="block text-sm">What needs moving?

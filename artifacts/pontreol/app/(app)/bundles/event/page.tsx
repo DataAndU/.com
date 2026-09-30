@@ -1,5 +1,6 @@
 "use client";
 
+import { TimeChips } from "@/components/time-chips";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -133,6 +134,7 @@ export default function EventPackPage() {
               <AddressSearch label="Where is the event?" value={near} onChange={setNear} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm">Starts
+                  <TimeChips value={start} onPick={setStart} />
                   <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm" />
                 </label>
                 <label className="block text-sm">Ends
