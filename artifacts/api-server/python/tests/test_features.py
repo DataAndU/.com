@@ -532,3 +532,24 @@ def test_morning_reminders_once_per_day_and_respect_opt_out(people, maker):
     assert "prov" in emails and "prov2" not in emails and "buyer" not in notices
     prefs = people["prov2"].get("/api/notification-preferences").json()
     assert prefs["emailReminders"] is False
+
+
+def test_society_page_recommendations_need_a_completed_job(people, maker):
+    from models import Booking
+    buyer = people["buyer"]
+    body = {"societyName": "Prestige Lakeside, Whitefield", "providerId": "prov"}
+    assert buyer.post("/api/societies/recommend", json=body, headers=SAME).status_code == 403
+    with maker() as db:
+        db.add(Booking(id="s1", listing_id="l-prov", buyer_id="buyer", provider_id="prov",
+                       category="services", status="completed", details={}))
+        db.commit()
+    made = buyer.post("/api/societies/recommend", json=body, headers=SAME)
+    assert made.status_code == 201 and made.json() == {"slug": "prestige-lakeside-whitefield", "created": True}
+    assert buyer.post("/api/societies/recommend", json=body, headers=SAME).json()["created"] is False
+    page = people["prov2"].get("/api/societies/prestige-lakeside-whitefield").json()
+    assert page["name"] == "Prestige Lakeside, Whitefield"
+    assert [(h["provider"]["id"], h["recommendations"], h["recommendedByMe"]) for h in page["helpers"]] == [("prov", 1, False)]
+    assert "buyer" not in str(page)
+    assert [p["id"] for p in buyer.get("/api/me/used-providers").json()["items"]] == ["prov"]
+    assert buyer.delete("/api/societies/prestige-lakeside-whitefield/recommend/prov", headers=SAME).status_code == 204
+    assert buyer.get("/api/societies/prestige-lakeside-whitefield").json()["helpers"] == []

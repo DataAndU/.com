@@ -16,7 +16,8 @@ import {
   X,
   Bell,
   Grid,
-  QrCode
+  QrCode,
+  Building
 } from "lucide-react";
 import { useState } from "react";
 import { AccountMenu } from "@/components/account-menu";
@@ -33,6 +34,7 @@ const routes = [
   { name: "Requests", key: "nav.requests" as const, path: "/requests", icon: Inbox },
   { name: "Messages", key: "nav.messages" as const, path: "/messages", icon: MessageSquare },
   { name: "Notifications", key: "nav.notifications" as const, path: "/notifications", icon: Bell },
+  { name: "My Society", key: "nav.society" as const, path: "/society", icon: Building },
   { name: "Poster", key: "nav.poster" as const, path: "/poster", icon: QrCode },
   { name: "Settings", key: "nav.settings" as const, path: "/settings", icon: Settings },
   { name: "Billing", key: "nav.billing" as const, path: "/billing", icon: CreditCard },

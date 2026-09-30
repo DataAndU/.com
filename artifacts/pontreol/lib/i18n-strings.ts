@@ -55,6 +55,7 @@ const en = {
   "emailAddress": "Email address",
   "verificationCode": "Verification code",
   "language": "Language",
+  "nav.society": "My Society",
 };
 
 export type Key = keyof typeof en;

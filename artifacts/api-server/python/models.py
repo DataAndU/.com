@@ -274,6 +274,19 @@ class SiteBanner(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
 
 
+class SocietyRecommendation(Base):
+    """A resident vouches for a helper they have used (migration 0012)."""
+    __tablename__ = "society_recommendations"
+    id = Column(String(36), primary_key=True, default=uid)
+    society_slug = Column(String(80), nullable=False, index=True)
+    society_name = Column(String(120), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    provider_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=now)
+    __table_args__ = (UniqueConstraint("society_slug", "user_id", "provider_id",
+                                       name="uq_society_recommendation"),)
+
+
 class GeocodeCache(Base):
     __tablename__ = "geocode_cache"
     query = Column(String(200), primary_key=True)
