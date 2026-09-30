@@ -137,3 +137,17 @@ html.light {
 .animate-fade-in {
   animation: fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* "Free now" map pins breathe gently so they stand out. */
+@keyframes pontreol-pulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.45; }
+  50% { transform: scale(1.15); opacity: 0.1; }
+}
+.pontreol-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pontreol-pulse 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pontreol-pulse { animation: none; }
+}

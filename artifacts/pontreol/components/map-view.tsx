@@ -22,7 +22,7 @@ const listingPin = L.divIcon({
 // Bright green pin with a soft halo for providers who are "Available now".
 const availablePin = L.divIcon({
   className: "",
-  html: '<svg width="44" height="48" viewBox="0 0 44 48" aria-hidden="true"><circle cx="22" cy="18" r="17" fill="#22c55e" opacity="0.25"/><path d="M22 45C18 39 6 27 6 18a16 16 0 1 1 32 0c0 9-12 21-16 27Z" fill="#22c55e" stroke="white" stroke-width="3"/><circle cx="22" cy="18" r="6" fill="white"/></svg>',
+  html: '<svg width="44" height="48" viewBox="0 0 44 48" aria-hidden="true"><circle class="pontreol-pulse" cx="22" cy="18" r="17" fill="#22c55e" opacity="0.35"/><path d="M22 45C18 39 6 27 6 18a16 16 0 1 1 32 0c0 9-12 21-16 27Z" fill="#22c55e" stroke="white" stroke-width="3"/><circle cx="22" cy="18" r="6" fill="white"/></svg>',
   iconSize: [44, 48],
   iconAnchor: [22, 46],
   popupAnchor: [0, -42],

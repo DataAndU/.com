@@ -120,6 +120,14 @@ export default function HomePage() {
 
         {summary && (
           <div className="mt-2 text-xs space-y-2">
+            {availableCount > 0 && (
+              <button type="button" onClick={() => setOnlyAvailable(!onlyAvailable)}
+                className="flex w-full items-center gap-2 rounded-lg bg-emerald-500/15 px-3 py-2 text-left text-sm font-semibold text-emerald-500">
+                <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" /></span>
+                {availableCount} {availableCount === 1 ? "helper is" : "helpers are"} free near you right now
+                <span className="ml-auto text-xs font-normal underline">{onlyAvailable ? "Show all" : "Show only them"}</span>
+              </button>
+            )}
             <div>
               {summary.nearbyListings.length > 0
                 ? <><span className="font-bold">{summary.nearbyListings.length}</span> {summary.nearbyListings.length === 1 ? "listing" : "listings"} within {RADIUS_KM} km of you · Tap a pin to preview</>
