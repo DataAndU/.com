@@ -34,7 +34,7 @@ export function ShareListing({ listing }: { listing: Pick<Listing, "id" | "title
         data-testid="button-share-whatsapp" aria-label="Share on WhatsApp">
         <WhatsAppIcon /> WhatsApp
       </a>
-      <button type="button" onClick={() => void nativeShare()} className="rounded-full p-2 hover:bg-white/5" aria-label="Share" data-testid="button-share">
+      <button type="button" onClick={() => void nativeShare()} className="rounded-full p-2 hover:bg-foreground/5" aria-label="Share" data-testid="button-share">
         {copied ? <span className="text-xs text-primary">Copied</span> : <Share2 className="h-4 w-4" />}
       </button>
     </div>

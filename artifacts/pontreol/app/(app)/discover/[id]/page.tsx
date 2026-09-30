@@ -58,7 +58,7 @@ export default function ListingDetailPage() {
         <p className="font-medium text-destructive">Unable to load this listing.</p>
         <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : "Please try again."}</p>
         <div className="flex justify-center gap-3">
-          <button onClick={() => router.back()} className="px-4 py-2 rounded-lg border border-border hover:bg-white/5">Go back</button>
+          <button onClick={() => router.back()} className="px-4 py-2 rounded-lg border border-border hover:bg-foreground/5">Go back</button>
           <button onClick={() => refetch()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90">Try again</button>
         </div>
       </div>
@@ -140,7 +140,7 @@ export default function ListingDetailPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
       <div className="shrink-0 border-b border-border bg-card px-6 py-4 flex items-center gap-4">
-        <button onClick={() => router.back()} className="p-2 hover:bg-white/5 rounded-full"><ArrowLeft className="w-5 h-5" /></button>
+        <button onClick={() => router.back()} className="p-2 hover:bg-foreground/5 rounded-full"><ArrowLeft className="w-5 h-5" /></button>
         <h1 className="text-xl font-bold truncate flex-1">{listing.title}</h1>
         <ShareListing listing={listing} />
       </div>
@@ -174,7 +174,7 @@ export default function ListingDetailPage() {
             
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold text-lg mb-4">About Provider</h3>
-              <div className="flex items-center gap-4 cursor-pointer hover:bg-white/5 p-2 rounded-lg transition-colors" onClick={() => router.push(`/providers/${listing.providerId}`)}>
+              <div className="flex items-center gap-4 cursor-pointer hover:bg-foreground/5 p-2 rounded-lg transition-colors" onClick={() => router.push(`/providers/${listing.providerId}`)}>
                 <img src={listing.provider?.avatarUrl || `https://ui-avatars.com/api/?name=${listing.provider?.displayName}`} alt="" className="w-12 h-12 rounded-full" />
                 <div>
                   <div className="font-semibold">{listing.provider?.displayName || "Unknown Provider"}</div>

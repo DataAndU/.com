@@ -26,6 +26,7 @@ import { AvailabilityToggle } from "@/components/availability-toggle";
 
 import { useMe } from "@/lib/api/account";
 import { LanguagePicker, useT } from "@/lib/i18n";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const routes = [
   { name: "Map", key: "nav.map" as const, path: "/home", icon: MapPin },
@@ -54,7 +55,7 @@ export function AppSidebar() {
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card shrink-0">
         <div className="flex items-center gap-3">
           <img src="/logo.svg" alt="Pontreol" className="w-8 h-8" />
-          <span className="font-bold uppercase tracking-tight text-white">Pontreol</span>
+          <span className="font-bold uppercase tracking-tight text-foreground">Pontreol</span>
         </div>
         <div className="flex items-center gap-4">
           <AccountMenu size={8} />
@@ -71,7 +72,7 @@ export function AppSidebar() {
       )}>
         <div className="hidden md:flex items-center gap-3 p-6 border-b border-border">
           <img src="/logo.svg" alt="Pontreol" className="w-8 h-8" />
-          <span className="font-bold text-lg uppercase tracking-tight text-white">Pontreol</span>
+          <span className="font-bold text-lg uppercase tracking-tight text-foreground">Pontreol</span>
         </div>
 
         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
@@ -90,7 +91,7 @@ export function AppSidebar() {
                   "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
                   isActive 
                     ? "bg-primary text-primary-foreground" 
-                    : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                    : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
                 )}
               >
                 <route.icon className="w-5 h-5" />
@@ -100,11 +101,11 @@ export function AppSidebar() {
           })}
         </div>
 
-        <div className="px-4 pb-4"><LanguagePicker className="w-full" /></div>
+        <div className="px-4 pb-4 flex gap-2"><LanguagePicker className="flex-1 min-w-0" /><ThemeToggle /></div>
         <div className="p-4 border-t border-border hidden md:flex items-center gap-3">
           <AccountMenu size={10} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{t("account")}</p>
+            <p className="text-sm font-medium text-foreground truncate">{t("account")}</p>
             <p className="text-xs text-muted-foreground truncate">{t("manageProfile")}</p>
           </div>
         </div>

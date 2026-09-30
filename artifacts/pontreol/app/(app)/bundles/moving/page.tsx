@@ -24,7 +24,7 @@ function useNearby(category: "delivery" | "services", near: GeocodedLocation | n
 function Choice({ listing, selected, onToggle }: { listing: Listing; selected: boolean; onToggle: () => void }) {
   return (
     <button type="button" onClick={onToggle} aria-pressed={selected}
-      className={`w-full rounded-lg border p-3 text-left text-sm transition-colors ${selected ? "border-primary bg-primary/10" : "border-border hover:bg-white/5"}`}>
+      className={`w-full rounded-lg border p-3 text-left text-sm transition-colors ${selected ? "border-primary bg-primary/10" : "border-border hover:bg-foreground/5"}`}>
       <span className="flex items-center justify-between gap-2">
         <span className="font-medium">{listing.title}</span>
         <span className="text-primary">₹{listing.price}{listing.pricingMode === "negotiable" ? " · neg." : ""}</span>

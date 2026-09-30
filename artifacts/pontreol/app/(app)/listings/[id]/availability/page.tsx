@@ -43,7 +43,7 @@ export default function AvailabilityPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
       <div className="shrink-0 border-b border-border bg-card px-6 py-4 flex items-center gap-4">
-        <button onClick={() => router.back()} className="p-2 hover:bg-white/5 rounded-full"><ArrowLeft className="w-5 h-5" /></button>
+        <button onClick={() => router.back()} className="p-2 hover:bg-foreground/5 rounded-full"><ArrowLeft className="w-5 h-5" /></button>
         <h1 className="text-xl font-bold truncate">Manage Availability</h1>
       </div>
 

@@ -22,7 +22,7 @@ export function InviteCard() {
       </div>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <input readOnly value={link} aria-label="Your invite link" className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm" onFocus={(e) => e.currentTarget.select()} />
-        <button type="button" className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-white/5"
+        <button type="button" className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-foreground/5"
           onClick={() => { void navigator.clipboard?.writeText(link).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 2000); }); }}>
           {copied ? "Copied" : "Copy"}
         </button>

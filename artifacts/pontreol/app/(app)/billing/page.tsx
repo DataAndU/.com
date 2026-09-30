@@ -287,7 +287,7 @@ export default function BillingPage() {
           {paymentsData?.payments && paymentsData.payments.length > 0 ? (
             <div className="bg-card border border-border rounded-xl shadow-sm divide-y divide-border overflow-hidden">
               {paymentsData.payments.map(payment => (
-                <div key={payment.id} className="p-4 px-6 flex items-center justify-between hover:bg-white/2 transition-colors">
+                <div key={payment.id} className="p-4 px-6 flex items-center justify-between hover:bg-foreground/5 transition-colors">
                   <div>
                     <div className="font-medium">₹{(payment.amountPaise / 100).toFixed(2)}</div>
                     <div className="text-xs text-muted-foreground">{format(new Date(payment.createdAt), "PPp")}</div>

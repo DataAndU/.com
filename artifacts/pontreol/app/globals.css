@@ -88,6 +88,32 @@
   --radius: 0.75rem;
 }
 
+/* Light theme: chosen with the sun/moon switch (html.light). */
+html.light {
+  --background: 0 0% 98%;
+  --foreground: 220 15% 12%;
+  --border: 220 10% 85%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 15% 12%;
+  --card-border: 220 10% 88%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 15% 12%;
+  --popover-border: 220 10% 88%;
+  --primary: 173 58% 33%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 211 55% 92%;
+  --secondary-foreground: 211 55% 20%;
+  --muted: 220 10% 94%;
+  --muted-foreground: 220 8% 40%;
+  --accent: 211 55% 92%;
+  --accent-foreground: 211 55% 20%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 220 10% 94%;
+  --ring: 173 58% 33%;
+  color-scheme: light;
+}
+
 @layer base {
   * {
     @apply border-border;

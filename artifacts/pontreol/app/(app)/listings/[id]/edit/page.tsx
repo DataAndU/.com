@@ -25,7 +25,7 @@ export default function EditListingPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
       <div className="shrink-0 border-b border-border bg-card px-6 py-4 flex items-center gap-4">
-        <button onClick={() => router.back()} className="p-2 hover:bg-white/5 rounded-full" aria-label="Go back"><ArrowLeft className="w-5 h-5" /></button>
+        <button onClick={() => router.back()} className="p-2 hover:bg-foreground/5 rounded-full" aria-label="Go back"><ArrowLeft className="w-5 h-5" /></button>
         <h1 className="text-xl font-bold truncate">Edit listing</h1>
       </div>
       <div className="flex-1 overflow-y-auto p-6">

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LanguagePicker, useT } from "@/lib/i18n";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Step = "email" | "code";
 
@@ -100,20 +101,21 @@ export function EmailSignIn({ mode, next, referral }: { mode: "sign in" | "sign 
   }
 
   const heading = mode === "sign up" ? "Create your Pontreol account" : "Sign in to Pontreol";
-  const input = "w-full rounded-lg border border-[#2a2d33] bg-[#2a2d33] px-3 py-3 text-white outline-none focus:border-primary focus:ring-2 focus:ring-primary/30";
+  const input = "w-full rounded-lg border border-border bg-input px-3 py-3 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/30";
   const button = "mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-[#218075] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#2A9D8F] disabled:opacity-60";
   const spinner = <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" aria-hidden="true" />;
 
   return (
-    <div className="flex min-h-[100dvh] w-full items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-2xl border border-[#2a2d33] bg-[#16181A] px-7 py-9 text-white shadow-2xl">
+    <div className="relative flex min-h-[100dvh] w-full items-center justify-center bg-background px-4">
+      <div className="absolute top-4 right-4 flex gap-2"><LanguagePicker /><ThemeToggle /></div>
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card px-7 py-9 text-foreground shadow-2xl">
         <img src="/logo.svg" alt="Pontreol" className="mx-auto mb-6 h-10 max-w-40" />
         <h1 className="text-center text-xl font-semibold">{heading}</h1>
         {referral && <p className="mt-2 text-center text-xs text-primary">You were invited to Pontreol 🎉</p>}
 
         {step === "email" ? (
           <form onSubmit={sendCode} className="mt-6 text-left" noValidate>
-            <label htmlFor="email" className="mb-1.5 block text-sm text-gray-300">{t("emailAddress")}</label>
+            <label htmlFor="email" className="mb-1.5 block text-sm text-muted-foreground">{t("emailAddress")}</label>
             <input id="email" name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none"
               spellCheck={false} required value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com" className={input} data-testid="input-email" />
@@ -124,8 +126,8 @@ export function EmailSignIn({ mode, next, referral }: { mode: "sign in" | "sign 
           </form>
         ) : (
           <form onSubmit={verify} className="mt-6 text-left">
-            {notice && <p className="mb-4 text-sm text-gray-400" role="status">{notice}</p>}
-            <label htmlFor="code" className="mb-1.5 block text-sm text-gray-300">{t("verificationCode")}</label>
+            {notice && <p className="mb-4 text-sm text-muted-foreground" role="status">{notice}</p>}
+            <label htmlFor="code" className="mb-1.5 block text-sm text-muted-foreground">{t("verificationCode")}</label>
             <input ref={codeInput} id="code" name="code" type="text" inputMode="numeric" autoComplete="one-time-code"
               pattern="[0-9]*" maxLength={6} required value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -136,9 +138,9 @@ export function EmailSignIn({ mode, next, referral }: { mode: "sign in" | "sign 
             </button>
             <div className="mt-4 flex items-center justify-between text-sm">
               <button type="button" onClick={() => { setStep("email"); setError(""); setNotice(""); setCode(""); }}
-                className="text-gray-400 hover:text-white" data-testid="button-change-email">Change email</button>
+                className="text-muted-foreground hover:text-foreground" data-testid="button-change-email">Change email</button>
               <button type="button" onClick={() => void sendCode()} disabled={pending || cooldown > 0}
-                className="text-primary hover:underline disabled:text-gray-500 disabled:no-underline" data-testid="button-resend">
+                className="text-primary hover:underline disabled:text-muted-foreground disabled:no-underline" data-testid="button-resend">
                 {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
               </button>
             </div>
@@ -148,7 +150,7 @@ export function EmailSignIn({ mode, next, referral }: { mode: "sign in" | "sign 
         {error && (
           <p role="alert" className="mt-5 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300" data-testid="status-auth-error">{error}</p>
         )}
-        <p className="mt-6 text-center text-xs text-gray-500">
+        <p className="mt-6 text-center text-xs text-muted-foreground">
           {mode === "sign up"
             ? <>Already have an account? <a href="/sign-in" className="text-primary hover:underline">Sign in</a></>
             : <>New to Pontreol? Verifying your email creates your account.</>}

@@ -58,7 +58,7 @@ export default function MessagesPage() {
                 <button
                   key={conv.id}
                   onClick={() => setActiveConvId(conv.id)}
-                  className={`w-full text-left p-4 hover:bg-white/5 transition-colors ${activeConvId === conv.id ? 'bg-white/5' : ''}`}
+                  className={`w-full text-left p-4 hover:bg-foreground/5 transition-colors ${activeConvId === conv.id ? 'bg-white/5' : ''}`}
                 >
                   <div className="flex justify-between items-start mb-1">
                     <span className="font-semibold text-sm truncate">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LanguagePicker, useT } from "@/lib/i18n";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Hammer, Box, Car, Building2, ChevronRight } from "lucide-react";
 
 // Visitors with a session cookie are sent to /home by middleware.
@@ -19,15 +20,15 @@ export default function LandingPage() {
       {/* Subtle background glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
       
-      <div className="absolute top-4 right-4 z-20"><LanguagePicker /></div>
+      <div className="absolute top-4 right-4 z-20 flex gap-2"><LanguagePicker /><ThemeToggle /></div>
       <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
         <div className="w-full max-w-md animate-fade-in">
           {/* Logo & Header */}
           <div className="flex flex-col items-center text-center mb-10">
             <img src="/logo.svg" alt="Pontreol Logo" className="w-20 h-20 mb-6 drop-shadow-lg" />
-            <h1 className="text-3xl font-bold tracking-tight mb-2 uppercase text-white">Pontreol</h1>
-            <p className="text-lg font-medium text-white">{t("tagline")}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Rent it. Hire it. Ride it. Nearby. <span className="whitespace-nowrap">· Paas mein sab milega.</span></p>
+            <h1 className="text-3xl font-bold tracking-tight mb-2 uppercase text-foreground">Pontreol</h1>
+            <p className="text-lg font-medium text-foreground">{t("tagline")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Hire it. Book it. Ride it. Nearby. <span className="whitespace-nowrap">· Paas mein sab milega.</span></p>
           </div>
 
           {/* Categories Grid */}

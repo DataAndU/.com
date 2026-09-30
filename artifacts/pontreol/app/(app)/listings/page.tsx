@@ -116,7 +116,7 @@ export default function MyListingsPage() {
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm max-w-3xl mx-auto">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-semibold">New Listing</h2>
-                <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-white/5 rounded-full" aria-label="Close form"><X className="w-5 h-5" /></button>
+                <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-foreground/5 rounded-full" aria-label="Close form"><X className="w-5 h-5" /></button>
               </div>
               <ListingForm defaultCategory={newCategory} mutationPending={createMutation.isPending} onSubmit={create} onCancel={() => setIsCreating(false)} />
             </div>

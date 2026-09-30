@@ -120,7 +120,7 @@ export function AddressSearch({ label, value, onChange, allowGps = true }: Props
                 setError("");
                 onChange(result);
               }}
-              className="block w-full text-left px-3 py-2 text-sm bg-card hover:bg-white/5 border-b border-border last:border-0"
+              className="block w-full text-left px-3 py-2 text-sm bg-card hover:bg-foreground/5 border-b border-border last:border-0"
             >
               {result.label}
             </button>

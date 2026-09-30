@@ -50,7 +50,7 @@ export default function PosterPage() {
             <p className="text-lg font-semibold text-teal-700">{area.trim() ? `Now live in ${area.trim()}` : "Now live near you"}</p>
             <h2 className="mt-2 text-3xl font-extrabold leading-tight">Everything you need,<br />right next door.</h2>
             <p className="mt-3 text-sm text-slate-600">Plumbers · Tempos · Tools · Halls · Rides</p>
-            <p className="mt-1 text-sm font-medium text-slate-700">Rent it. Hire it. Ride it. Nearby.</p>
+            <p className="mt-1 text-sm font-medium text-slate-700">Hire it. Book it. Ride it. Nearby.</p>
           </div>
           <div>
             {qr ? <div className="mx-auto h-44 w-44" dangerouslySetInnerHTML={{ __html: qr }} /> : <div className="mx-auto h-44 w-44 animate-pulse rounded bg-slate-200" />}

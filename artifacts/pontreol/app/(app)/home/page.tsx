@@ -80,7 +80,7 @@ export default function HomePage() {
       <div className="shrink-0 w-full p-3 border-b border-border bg-background">
         <HomeBanner />
         <form onSubmit={handleManualSearch} className="bg-card border border-border shadow-xl rounded-xl flex items-center p-2 gap-2">
-          <button type="button" onClick={() => { setSearchError(""); locate(); }} className="p-2 text-primary hover:bg-white/5 rounded-lg" title="Use GPS" aria-label="Use my current location">
+          <button type="button" onClick={() => { setSearchError(""); locate(); }} className="p-2 text-primary hover:bg-foreground/5 rounded-lg" title="Use GPS" aria-label="Use my current location">
             <Navigation className="w-5 h-5" />
           </button>
           <input 
