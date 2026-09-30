@@ -91,6 +91,9 @@ export type Listing = {
   photos: Media[];
   distanceKm?: number;
   viewCount: number;
+  dealPercent?: number | null;
+  dealUntil?: string | null;
+  dealPrice?: number | null;
   contactCount: number;
   createdAt: string;
   updatedAt: string;

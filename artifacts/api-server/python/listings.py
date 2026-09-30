@@ -153,11 +153,14 @@ def search(db: Session = Depends(get_db), user=Depends(current_user),
            pickupLng: Annotated[float | None, Query(ge=-180, le=180)] = None,
            dropoffLat: Annotated[float | None, Query(ge=-90, le=90)] = None,
            dropoffLng: Annotated[float | None, Query(ge=-180, le=180)] = None,
-           availableNow: bool = False):
+           availableNow: bool = False, deals: bool = False):
     if category and category not in CATEGORIES:
         raise HTTPException(422, "Unknown category")
     stmt = select(Listing).where(Listing.status == "active", Listing.category.in_(CATEGORIES))
     if category: stmt = stmt.where(Listing.category == category)
+    if deals:
+        stmt = stmt.where(Listing.deal_percent.is_not(None),
+                          Listing.deal_until > datetime.now(timezone.utc))
     if availableNow:
         # "Need it today": only providers who switched on Available now.
         stmt = stmt.where(Listing.provider_id.in_(select(User.id).where(
@@ -258,6 +261,29 @@ def update(listing_id: str, body: ListingPatch, db: Session = Depends(get_db), u
         _set_photos(db, listing, photos)
     db.flush()
     return listing_json(db, listing)
+
+
+class DealBody(BaseModel):
+    percent: int = Field(ge=5, le=70)
+    hours: int = Field(ge=1, le=48)
+
+
+@router.put("/listings/{listing_id}/deal")
+def set_deal(listing_id: str, body: DealBody, db: Session = Depends(get_db), user=Depends(require_role("provider"))):
+    """Last-minute deal: e.g. 20% off for the next 6 hours."""
+    listing = owned(db, Listing, listing_id, user)
+    if listing.status != "active":
+        raise HTTPException(409, "Only active listings can run a deal")
+    listing.deal_percent = body.percent
+    listing.deal_until = datetime.now(timezone.utc) + timedelta(hours=body.hours)
+    db.flush()
+    return listing_json(db, listing)
+
+
+@router.delete("/listings/{listing_id}/deal", status_code=204)
+def end_deal(listing_id: str, db: Session = Depends(get_db), user=Depends(require_role("provider"))):
+    listing = owned(db, Listing, listing_id, user)
+    listing.deal_percent, listing.deal_until = None, None
 
 
 @router.delete("/listings/{listing_id}", status_code=204)

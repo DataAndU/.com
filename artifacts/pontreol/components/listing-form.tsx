@@ -7,7 +7,7 @@ import { Upload, X } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { AddressSearch, GeocodedLocation } from "./address-search";
 
-type Category = Listing["category"];
+export type Category = Listing["category"];
 type PricingMode = Listing["pricingMode"];
 type Status = Listing["status"];
 

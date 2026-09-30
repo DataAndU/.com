@@ -77,6 +77,16 @@ def media_json(media):
                 status=media.status)
 
 
+def deal_json(listing):
+    until = getattr(listing, "deal_until", None)
+    if until is not None and until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    if not listing.deal_percent or not until or until <= datetime.now(timezone.utc):
+        return dict(dealPercent=None, dealUntil=None, dealPrice=None)
+    return dict(dealPercent=listing.deal_percent, dealUntil=iso(until),
+                dealPrice=round(listing.price * (100 - listing.deal_percent) / 100))
+
+
 def listing_json(db, listing, distance=None):
     provider = db.get(User, listing.provider_id)
     media = list(db.scalars(select(Media).join(ListingMedia).where(
@@ -93,7 +103,8 @@ def _listing_payload(listing, provider, media, distance):
                 longitude=listing.longitude, status=listing.status,
                 attributes=listing.attributes, photos=[media_json(x) for x in media],
                 distanceKm=distance, viewCount=listing.view_count,
-                contactCount=listing.contact_count, createdAt=iso(listing.created_at),
+                contactCount=listing.contact_count, **deal_json(listing),
+                createdAt=iso(listing.created_at),
                 updatedAt=iso(listing.updated_at))
 
 

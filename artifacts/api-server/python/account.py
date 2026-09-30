@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from common import FOUNDING_PROVIDER_LIMIT, provider_json, user_json
 import referrals
 from deps import current_user, get_db, require_role
-from models import Listing, Review, User
+from models import Booking, Listing, Review, User
 
 router = APIRouter()
 
@@ -23,6 +23,29 @@ class ProfileBody(BaseModel):
     phone: str | None = Field(None, max_length=40)
     contactEmailVisible: bool | None = None
     contactPhoneVisible: bool | None = None
+
+
+@router.get("/me/earnings")
+def earnings(db: Session = Depends(get_db), user=Depends(require_role("provider"))):
+    """Simple monthly summary of completed jobs (agreed quote, else listing price)."""
+    now = datetime.now(timezone.utc)
+    this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month = (this_month - timedelta(days=1)).replace(day=1)
+    rows = db.execute(select(Booking.quoted_price, Listing.price,
+                             func.coalesce(Booking.provider_completed_at, Booking.updated_at))
+                      .join(Listing, Listing.id == Booking.listing_id)
+                      .where(Booking.provider_id == user.id, Booking.status == "completed")).all()
+
+    def bucket(start, end=None):
+        picked = []
+        for quoted, price, at in rows:
+            at = at.replace(tzinfo=timezone.utc) if at.tzinfo is None else at
+            if at >= start and (end is None or at < end):
+                picked.append(quoted if quoted is not None else price)
+        return {"jobs": len(picked), "amount": round(sum(picked))}
+
+    return {"thisMonth": bucket(this_month), "lastMonth": bucket(last_month, this_month),
+            "allTimeJobs": len(rows), "currency": "INR"}
 
 
 @router.get("/me")

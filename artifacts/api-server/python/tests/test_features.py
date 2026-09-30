@@ -482,3 +482,30 @@ def test_review_photos_must_be_own_ready_review_photos(people, maker):
     assert ok.status_code == 201 and ok.json()["photoIds"] == ["m-mine"]
     profile = buyer.get("/api/providers/prov").json()
     assert profile["reviews"][0]["photoUrls"] == ["/api/media/m-mine"]
+
+
+def test_last_minute_deal_and_earnings(people, maker):
+    from models import Booking
+    prov, buyer = people["prov"], people["buyer"]
+    assert prov.put("/api/listings/l-prov/deal", json={"percent": 90, "hours": 2}, headers=SAME).status_code == 422
+    assert people["prov2"].put("/api/listings/l-prov/deal", json={"percent": 20, "hours": 2}, headers=SAME).status_code == 404
+    deal = prov.put("/api/listings/l-prov/deal", json={"percent": 20, "hours": 6}, headers=SAME)
+    assert deal.status_code == 200 and deal.json()["dealPercent"] == 20
+    assert deal.json()["dealPrice"] == round(deal.json()["price"] * 0.8)
+    assert [x["id"] for x in buyer.get("/api/listings?deals=true").json()["items"]] == ["l-prov"]
+    assert prov.delete("/api/listings/l-prov/deal", headers=SAME).status_code == 204
+    assert buyer.get("/api/listings?deals=true").json()["items"] == []
+
+    now = datetime.now(timezone.utc)
+    with maker() as db:
+        db.add(Booking(id="e1", listing_id="l-prov", buyer_id="buyer", provider_id="prov", category="services",
+                       status="completed", details={}, quoted_price=1200, provider_completed_at=now))
+        db.add(Booking(id="e2", listing_id="l-prov", buyer_id="buyer", provider_id="prov", category="services",
+                       status="completed", details={}, provider_completed_at=now))
+        db.add(Booking(id="e3", listing_id="l-prov", buyer_id="buyer", provider_id="prov", category="services",
+                       status="confirmed", details={}, quoted_price=999))
+        db.commit()
+    summary = prov.get("/api/me/earnings").json()
+    listing_price = buyer.get("/api/listings/l-prov").json()["price"]
+    assert summary["thisMonth"] == {"jobs": 2, "amount": round(1200 + listing_price)}
+    assert buyer.get("/api/me/earnings").status_code == 403

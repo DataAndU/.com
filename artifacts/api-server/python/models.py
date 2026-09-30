@@ -105,6 +105,9 @@ class Listing(Base):
     attributes = Column(JSON, nullable=False, default=dict)
     view_count = Column(Integer, nullable=False, default=0)
     contact_count = Column(Integer, nullable=False, default=0)
+    # Last-minute deal (migration 0010): percent off until deal_until.
+    deal_percent = Column(Integer)
+    deal_until = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), nullable=False, default=now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=now, onupdate=now)
     # Bounding-box lookups for /home/summary and /listings (migration 0001).

@@ -30,6 +30,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
   
   const [travelOrigin, setTravelOrigin] = useState("");
   const [nowOnly, setNowOnly] = useState(false);
+  const [dealsOnly, setDealsOnly] = useState(false);
   const [deliveryFrom, setDeliveryFrom] = useState("");
   const [deliveryTo, setDeliveryTo] = useState("");
   const [travelDest, setTravelDest] = useState("");
@@ -69,6 +70,7 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
     const activeCategory = fixedCategory || category;
     if (activeCategory) newFilters.category = activeCategory;
     if (nowOnly) newFilters.availableNow = "true";
+    if (dealsOnly) newFilters.deals = "true";
     if (priceMin) newFilters.priceMin = priceMin;
     if (priceMax) newFilters.priceMax = priceMax;
     
@@ -196,6 +198,11 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
               className={`h-8 rounded-full px-3 text-xs font-semibold border ${nowOnly ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground"}`}>
               ● Available now
             </button>
+            <button type="button" aria-pressed={dealsOnly}
+              onClick={() => { const next = !dealsOnly; setDealsOnly(next); setFilters((prev) => { const f = { ...prev }; if (next) f.deals = "true"; else delete f.deals; return f; }); }}
+              className={`h-8 rounded-full px-3 text-xs font-semibold border ${dealsOnly ? "bg-amber-500 text-black border-amber-500" : "border-border text-muted-foreground"}`}>
+              ⚡ Deals
+            </button>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium uppercase">Price:</span>
               <input type="number" placeholder="Min ₹" value={priceMin} onChange={e=>setPriceMin(e.target.value)} className="w-20 h-8 bg-input border border-border rounded px-2 text-xs" />
@@ -273,6 +280,9 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                     <div className="absolute top-2 left-2 bg-black/60 backdrop-blur text-white text-[10px] uppercase font-bold px-2 py-1 rounded">
                       {listing.category}
                     </div>
+                    {listing.dealPercent ? (
+                      <div className="absolute bottom-2 left-2 bg-amber-500 text-black text-[10px] font-bold px-2 py-1 rounded">⚡ {listing.dealPercent}% off today</div>
+                    ) : null}
                     {listing.provider?.availableNow && (
                       <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded">● Free now</div>
                     )}
@@ -291,7 +301,11 @@ export function DiscoverBoard({ fixedCategory, headerContent }: DiscoverBoardPro
                     <div className="mt-auto flex items-center justify-between">
                       <div className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground">Starts from</span>
-                        <span className="font-bold text-lg leading-tight">₹{listing.price.toLocaleString("en-IN")}</span>
+                        {listing.dealPrice ? (
+                          <span className="font-bold text-lg leading-tight">₹{listing.dealPrice.toLocaleString("en-IN")} <span className="text-xs font-normal text-muted-foreground line-through">₹{listing.price.toLocaleString("en-IN")}</span></span>
+                        ) : (
+                          <span className="font-bold text-lg leading-tight">₹{listing.price.toLocaleString("en-IN")}</span>
+                        )}
                         {listing.pricingMode === "negotiable" && <span className="text-[10px] text-muted-foreground">Price can be discussed</span>}
                       </div>
                       <button className="px-4 py-1.5 bg-secondary text-secondary-foreground rounded-lg text-xs font-medium hover:bg-secondary/90 transition-colors">
